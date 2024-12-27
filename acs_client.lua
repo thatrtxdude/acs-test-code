@@ -1,763 +1,1413 @@
-repeat
-	wait()
-until game.Players.LocalPlayer.Character
+local RS 			= game:GetService("ReplicatedStorage")
+local User 			= game:GetService("UserInputService")
+local CAS 			= game:GetService("ContextActionService")
+local Run 			= game:GetService("RunService")
+local TS 			= game:GetService('TweenService')
+local Debris 		= game:GetService("Debris")
+local PhysicsService= game:GetService("PhysicsService")
+local PlayersService= game:GetService("Players")
 
-local Jogador = game.Players.LocalPlayer
-local Personagem = Jogador.Character
-local CurCamera = workspace.CurrentCamera
-local PegarMouse = Jogador:GetMouse()
-local camera = workspace.CurrentCamera
+local ACS_Workspace = workspace:WaitForChild("ACS_WorkSpace")
+local Engine 		= RS:WaitForChild("ACS_Engine")
+local Evt 			= Engine:WaitForChild("Events")
+local Mods 			= Engine:WaitForChild("Modules")
+local HUDs 			= Engine:WaitForChild("HUD")
+local Essential 	= Engine:WaitForChild("Essential")
+local ArmModel 		= Engine:WaitForChild("ArmModel")
+local GunModels 	= Engine:WaitForChild("GunModels")
+local AttModels 	= Engine:WaitForChild("AttModels")
+local AttModules  	= Engine:WaitForChild("AttModules")
+local Rules			= Engine:WaitForChild("GameRules")
+local PastaFx		= Engine:WaitForChild("FX")
 
-local cameraShaker = require(game.ReplicatedStorage.CameraShaker) -- get the module to be used and
+local gameRules		= require(Rules:WaitForChild("Config"))
+local SpringMod 	= require(Mods:WaitForChild("Spring"))
+local HitMod 		= require(Mods:WaitForChild("Hitmarker"))
+local Thread 		= require(Mods:WaitForChild("Thread"))
+local Ultil			= require(Mods:WaitForChild("Utilities"))
 
-local Balinha
-local Correndo
-local ArmaClient
-local ArmaClone
-local Offset
+local plr 			= PlayersService.LocalPlayer
+local char 			= plr.Character or plr.CharacterAdded:Wait()
+local mouse 		= plr:GetMouse()
+local cam 			= workspace.CurrentCamera
+local ACS_Client 	= char:WaitForChild("ACS_Client")
 
-local GunshotSoundEvent = game.ReplicatedStorage:WaitForChild("GunshotSoundEvent")
-local GunshotEchoEvent = game.ReplicatedStorage:WaitForChild("GunshotEchoEvent")
+local noise = require(RS.PerlinNoise)
+local currentZoom = cam.FieldOfView
 
-local Engine = game.ReplicatedStorage:WaitForChild("ACS_Engine")
-local Evt = Engine:WaitForChild("Eventos")
-local Mod = Engine:WaitForChild("Modulos")
-local PastaHUD = Engine:WaitForChild("HUD")
-local PastaFX = Engine:WaitForChild("FX")
-local GunMods = Engine:WaitForChild("GunMods")
-local GunModels = Engine:WaitForChild("GunModels")
+local Equipped 		= 0
+local Primary 		= ""
+local Secondary 	= ""
+local Grenades 		= ""
 
-local GunModelClient = GunModels:WaitForChild("Client")
-local GunModelServer = GunModels:WaitForChild("Server")
-local Ultil = require(Mod:WaitForChild("Utilities"))
-local SetupMod = require(Mod:WaitForChild("SetupModule"))
-local Hitmarker = require(Mod:WaitForChild("Hitmarker"))
-local SpringMod = require(Mod:WaitForChild("Spring"))
-local ServerConfig = require(Engine.ServerConfigs:WaitForChild("Config"))
-local ACS_Storage = workspace:WaitForChild("ACS_WorkSpace")
+local Ammo
+local StoredAmmo
 
-local ADSMeshDOF = game.Lighting:WaitForChild("ADSMeshDOF")
+local GreAmmo = 0
 
-local ACS
-local Var
-local Prog
-local Settings
-local Anims
-
-local Player = game.Players.LocalPlayer
-local Character = Player.Character
-local Human = Character:WaitForChild("Humanoid")
-local Mouse = Player:GetMouse()
-local uis = game:GetService("UserInputService")
-local Camera = workspace.CurrentCamera
-local ToolEquip = false
-local Equipped = false
-local Nadando = false
-local Saude = Character:WaitForChild("Saude")
-local Sprinting = Saude.Stances:WaitForChild("Correndo")
-
-local Recoil = CFrame.new()
-local VRecoil, HRecoil, VPunchBase, HPunchBase, DPunchBase, RecoilPower, BSpread
-local Ammo, StoredAmmo, GLAmmo
-local FireRate, BurstFireRate
-local Chambered, GLChambered, ModoTreino, Emperrado
-local Sens, Zeroing
-
-local DecreasedAimLastShot = false
+local WeaponInHand, WeaponTool, WeaponData, AnimData, PreviousTool, RepValues
+local ViewModel, AnimPart, LArm, RArm, LArmWeld, RArmWeld, GunWeld
+local SightData, BarrelData, UnderBarrelData, OtherData
+local generateBullet = 1
+local BSpread
+local RecoilPower
 local LastSpreadUpdate = time()
+local SE_GUI
+local SKP_01 = Evt.AcessId:InvokeServer(plr.UserId)
 
-local Gui, CanUpdateGui = nil, true
+local CHup, CHdown, CHleft, CHright = UDim2.new(),UDim2.new(),UDim2.new(),UDim2.new()
 
-local AimPartMode = 1
-local SpeedPrecision = 0
+local charspeed 	= 0
+local running 		= false
+local runKeyDown 	= false
+local aimming 		= false
+local shooting 		= false
+local reloading 	= false
+local mouse1down 	= false
+local AnimDebounce 	= false
+local CancelReload 	= false
+local SafeMode		= false
+local JumpDelay 	= false
+local NVG 			= false
+local NVGdebounce 	= false	
+local canDrop		= false
+local canPump		= false
+local GunStance 	= 0
+local AimPartMode 	= 1
 
-local falling = false
-local OverHeat = false
-local slideback = false
-local Can_Shoot = true
-local Safe = false
-local AnimDebHounce = false
-local CancelReload = false
-local MouseHeld
+local SightAtt		= nil
+local reticle		= nil
+local CurAimpart 	= nil
 
-local PlaceHolder = true
+local BarrelAtt 	= nil
+local Suppressor 	= false
+local FlashHider 	= false
 
-local ModStorageFolder = Player.PlayerGui:FindFirstChild("ModStorage") or Instance.new("Folder")
-ModStorageFolder.Parent = Player.PlayerGui
-ModStorageFolder.Name = "ModStorage"
+local UnderBarrelAtt= nil
 
-local Aiming = false
-local Reloading = false
-local stance = 0
+local OtherAtt 		= nil
 
-local NVG = false
-local Bipod = false
-local CanPlaceBipod = false
-local BipodEnabled = false
-local Silencer
-local LanternaAtiva = false
-local LaserAtivo = false
-local IRmode = false
-local Laser
-local Pointer
-local LaserSP
-local LaserEP
-local LaserDist = 999
-local LanternaBeam
-local LanternaSP
-local LanternaEP
+local LaserAtt 		= false
+local LaserActive	= false
+local IRmode		= false
+local IREnable		= false
+local LaserDist 	= 0
+local Laser 		= nil
+local Pointer 		= nil
 
-local Left_Weld, Right_Weld, RA, LA, RightS, LeftS, HeadBase, HeadBaseW, HW, HW2, Grip_Weld, GripNode
-local AnimBase, AnimBaseW, NeckW, FakeArms, Folder, Arma, Clone
+local TorchAtt 		= false
+local TorchActive 	= false
 
---// Gun Parts
+local BipodAtt 		= false
+local CanBipod 		= false
+local BipodActive 	= false
 
-local SFn
+local GRDebounce 	= false
+local CookGrenade 	= false
 
-local ABS, HUGE, FLOOR, CEIL = math.abs, math.huge, math.floor, math.ceil
-local RAD, SIN, COS, TAN = math.rad, math.sin, math.cos, math.tan
-local VEC2, V3 = Vector2.new, Vector3.new
-local CF, CFANG = CFrame.new, CFrame.Angles
-local INSERT = table.insert
+local ToolEquip 	= false
+local Sens 			= 50
+local Power 		= 150
 
-local Walking = false
+local BipodCF 		= CFrame.new()
+local NearZ 		= CFrame.new(0,0,-.5)
 
-local instance = Instance.new
-local CFn = CFrame.new
-local CFa = CFrame.Angles
-local asin = math.asin
-local abs = math.abs
-local min = math.min
-local max = math.max
-local random = math.random
+--------------------mods
 
-local OldTick = tick()
-local t = 0
-local Reconum = SpringMod.new(V3())
-local sway = SpringMod.new(V3())
-local Walk = SpringMod.new(V3())
-local WalkRate = 1
-local speed = 10
-local damper = 1
+local ModTable = {
 
-Walk.s = speed
-Walk.d = damper
-Reconum.s = speed
-Reconum.d = 0.15
-sway.s = speed
-sway.d = damper
-local WVal = 0.25
-local Waval = CFn()
-local TS = game:GetService("TweenService")
-local RS = game:GetService("RunService")
+	camRecoilMod 	= {
+		RecoilTilt 	= 1,
+		RecoilUp 	= 1,
+		RecoilLeft 	= 1,
+		RecoilRight = 1
+	}
 
---// Char Parts
-local Humanoid = Personagem:WaitForChild("Humanoid")
-local Head = Personagem:WaitForChild("Head")
-local Torso = Personagem:WaitForChild("Torso")
-local HumanoidRootPart = Personagem:WaitForChild("HumanoidRootPart")
-local RootJoint = HumanoidRootPart:WaitForChild("RootJoint")
-local Neck = Torso:WaitForChild("Neck")
-local Right_Shoulder = Torso:WaitForChild("Right Shoulder")
-local Left_Shoulder = Torso:WaitForChild("Left Shoulder")
-local Right_Hip = Torso:WaitForChild("Right Hip")
-local Left_Hip = Torso:WaitForChild("Left Hip")
+	,gunRecoilMod	= {
+		RecoilUp 	= 1,
+		RecoilTilt 	= 1,
+		RecoilLeft 	= 1,
+		RecoilRight = 1
+	}
 
-local Connections = {}
+	,ZoomValue 		= 70
+	,Zoom2Value 	= 70
+	,AimRM 			= 1
+	,SpreadRM 		= 1
+	,DamageMod 		= 1
+	,minDamageMod 	= 1
 
-local Debris = game:GetService("Debris")
+	,MinRecoilPower 			= 1
+	,MaxRecoilPower 			= 1
+	,RecoilPowerStepAmount 		= 1
 
-local Ignore_Model = ACS_Storage:FindFirstChild("Server")
+	,MinSpread 					= 1
+	,MaxSpread 					= 1					
+	,AimInaccuracyStepAmount 	= 1
+	,AimInaccuracyDecrease 		= 1
+	,WalkMult 					= 1
+	,adsTime 					= 1		
+	,MuzzleVelocity 			= 1
+}  
 
-local BulletModel = ACS_Storage:FindFirstChild("Client")
+--------------------mods
 
-local IgnoreList = {"Ignorable", "Glass"}
+local maincf 		= CFrame.new() --weapon offset of camera
+local guncf  		= CFrame.new() --weapon offset of camera
+local larmcf 		= CFrame.new() --left arm offset of weapon
+local rarmcf 		= CFrame.new() --right arm offset of weapon
 
-local Ray_Ignore = {Character, Ignore_Model, Camera, BulletModel, IgnoreList}
-
-local BlurTween =
-	TS:Create(
-		ADSMeshDOF,
-		TweenInfo.new(0.5),
-		{
-			["FarIntensity"] = 1
-		}
-	)
-
-local UnBlurTween =
-	TS:Create(
-		ADSMeshDOF,
-		TweenInfo.new(0.5),
-		{
-			["FarIntensity"] = 0
-		}
-	)
-
-local speedofsound = 343
-
-Camera.CameraType = Enum.CameraType.Custom
-Camera.CameraSubject = Humanoid
-
---Blur
---local GlassmorphicUI = require(game.ReplicatedStorage.GlassmorphicUI)
-
-----------------------------------------------------------------------------------------------
---------------------------------[PROGRAMA]----------------------------------------------------
-----------------------------------------------------------------------------------------------
-
-HeadBase = Instance.new("Part")
-HeadBase.Name = "BasePart"
-HeadBase.Parent = Camera
-HeadBase.Anchored = true
-HeadBase.CanCollide = false
-HeadBase.Transparency = 1
-HeadBase.Size = Vector3.new(0.1, 0.1, 0.1)
-
-HeadBaseAtt = Instance.new("Attachment")
-HeadBaseAtt.Parent = HeadBase
-
-local StatusUI = PastaHUD:WaitForChild("StatusUI")
-local StatusClone = StatusUI:Clone()
-StatusClone.Parent = Jogador.PlayerGui
-
-if ServerConfig.EnableHunger then
-	StatusClone.FomeSede.Disabled = false
-end
-
-if ServerConfig.EnableGPS then
-	local StatusUI = PastaHUD:WaitForChild("GPShud")
-	local StatusClone = StatusUI:Clone()
-	StatusClone.Parent = Jogador.PlayerGui
-	StatusClone.GPS.Disabled = false
-end
-
-function ResetWorkspace()
-	Ignore_Model:ClearAllChildren()
-	BulletModel:ClearAllChildren()
-	workspace.Terrain:ClearAllChildren()
-end
-
-ResetWorkspace()
-
-Evt.Hit.OnClientEvent:Connect(
-	function(Player, Position, HitPart, Normal, Material, Settings)
-		if Player ~= Jogador then
-			Hitmarker.HitEffect(Ray_Ignore, ACS_Storage, Position, HitPart, Normal, Material, Settings)
-		end
-	end
+local gunbobcf		= CFrame.new()
+local recoilcf 		= CFrame.new()
+local aimcf 		= CFrame.new()
+local AimTween 		= TweenInfo.new(
+	0.3,
+	Enum.EasingStyle.Linear,
+	Enum.EasingDirection.InOut,
+	0,
+	false,
+	0
 )
 
-Evt.HeadRot.OnClientEvent:Connect(
-	function(Player, Rotacao, Offset, Equipado)
-		if Player ~= Jogador and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") ~= nil then
-			local HRPCF = Player.Character["HumanoidRootPart"].CFrame * CFrame.new(0, 1.5, 0) * CFrame.new(Offset)
-			Player.Character.Torso:WaitForChild("Neck").C0 = Player.Character.Torso.CFrame:toObjectSpace(HRPCF)
-			Player.Character.Torso:WaitForChild("Neck").C1 = CFrame.Angles(Rotacao, 0, 0)
-		end
-	end
-)
+local Ignore_Model = {cam,char,ACS_Workspace.Client,ACS_Workspace.Server}
 
-Evt.Atirar.OnClientEvent:Connect(
-	function(Player, FireRate, Anims, Arma)
-		if Player ~= Jogador then
-			if
-				Player.Character:FindFirstChild("S" .. Arma.Name) ~= nil and
-				Player.Character["S" .. Arma.Name].Grip:FindFirstChild("Muzzle") ~= nil
-			then
-				local Muzzle = Player.Character["S" .. Arma.Name].Grip:FindFirstChild("Muzzle")
-
-				if
-					Player.Character["S" .. Arma.Name]:FindFirstChild("Silenciador") ~= nil and
-					Player.Character["S" .. Arma.Name].Silenciador.Transparency == 0
-				then
-					Muzzle:FindFirstChild("FlashFX").Brightness = 0
-					Muzzle:FindFirstChild("FlashFX[Flash]").Rate = 0
-				else
-					Muzzle:FindFirstChild("FlashFX").Brightness = 5
-					Muzzle:FindFirstChild("FlashFX[Flash]").Rate = 1000
-				end
-
-				for _, v in pairs(Muzzle:GetChildren()) do
-					if v.Name:sub(1, 7) == "FlashFX" or v.Name:sub(1, 7) == "Smoke" then
-						v.Enabled = true
-					end
-				end
-
-				delay(
-					1 / 30,
-					function()
-						for _, v in pairs(Muzzle:GetChildren()) do
-							if v.Name:sub(1, 7) == "FlashFX" or v.Name:sub(1, 7) == "Smoke" then
-								v.Enabled = false
-							end
-						end
-					end
-				)
-			end
-			if
-				Player.Character:FindFirstChild("AnimBase") ~= nil and
-				Player.Character.AnimBase:FindFirstChild("AnimBaseW")
-			then
-				local AnimBase = Player.Character:WaitForChild("AnimBase"):WaitForChild("AnimBaseW")
-
-				TS:Create(AnimBase, TweenInfo.new(FireRate), {C1 = Anims.ShootPos}):Play()
-				wait(FireRate * 2)
-				TS:Create(AnimBase, TweenInfo.new(.2), {C1 = CFrame.new()}):Play()
-			end
-		end
-	end
-)
-
-function Setup(Tools)
-	local Torso = Character:FindFirstChild("Torso")
-	local Head = Character:FindFirstChild("Head")
-	local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
-
-	ArmaClient = Tools
-	ArmaClone = GunModelClient:WaitForChild(ArmaClient.Name):Clone()
-	Var = Tools.ACS_Modulo.Variaveis
-	Settings = require(Var:WaitForChild("Settings"))
-	Anims = require(Var:WaitForChild("Animations"))
-
-	VRecoil = math.random(Settings.VRecoil[1], Settings.VRecoil[2]) / 1000
-	HRecoil = math.random(Settings.HRecoil[1], Settings.HRecoil[2]) / 1000
-	VPunchBase = (Settings.VPunchBase)
-	HPunchBase = (Settings.HPunchBase)
-	DPunchBase = (Settings.DPunchBase)
-	RecoilPower = Settings.MinRecoilPower
-	BSpread = Settings.MinSpread
-
-	Silencer = Var.Suppressor
-	Ammo, StoredAmmo, GLAmmo = Var.Ammo, Var.StoredAmmo, Var.LauncherAmmo
-	Chambered, Emperrado, GLChambered = Var.Chambered, Var.Emperrado, Var.GLChambered
-	FireRate = 1 / (Settings.FireRate / 60)
-	BurstFireRate = 1 / (Settings.BurstFireRate / 60)
-
-	ModoTreino = Settings.ModoTreino
-
-	Sens = Var.Sens
-	Zeroing = Var.Zeroing
-
-	Evt.Equipar:FireServer(ArmaClient, Settings)
-
-	Folder = Instance.new("Model", Camera)
-	Folder.Name = Tools.Name
-
-	AnimBase = Instance.new("Part", Folder)
-	AnimBase.FormFactor = "Custom"
-	AnimBase.CanCollide = false
-	AnimBase.Transparency = 1
-	AnimBase.Anchored = true
-	AnimBase.Name = "AnimBase"
-	AnimBase.Size = Vector3.new(0.1, 0.1, 0.1)
-
-	AnimBaseW = Instance.new("Motor6D")
-	AnimBaseW.Part0 = AnimBase
-	AnimBaseW.Part1 = HeadBase
-	AnimBaseW.Parent = AnimBase
-	AnimBaseW.Name = "AnimBaseW"
-	AnimBase.Anchored = false
-
-	Clone = Instance.new("Motor6D")
-	Clone.Name = "Clone"
-	Clone.Parent = AnimBase
-	Clone.Part0 = AnimBase
-	Clone.Part1 = HeadBase
-
-	ArmaClone.Parent = Folder
-
-	for L_209_forvar1, L_210_forvar2 in pairs(ArmaClone:GetChildren()) do
-		if L_210_forvar2:IsA("BasePart") and L_210_forvar2.Name ~= "Handle" then
-			if L_210_forvar2.Name ~= "Bolt" and L_210_forvar2.Name ~= "Lid" then
-				Ultil.Weld(L_210_forvar2, ArmaClone:WaitForChild("Handle"))
-			end
-
-			if L_210_forvar2.Name == "Bolt" or L_210_forvar2.Name == "Slide" then
-				Ultil.WeldComplex(ArmaClone:WaitForChild("Handle"), L_210_forvar2, L_210_forvar2.Name)
-			end
-
-			if L_210_forvar2.Name == "Lid" then
-				if ArmaClone:FindFirstChild("LidHinge") then
-					Ultil.Weld(L_210_forvar2, ArmaClone:WaitForChild("LidHinge"))
-				else
-					Ultil.Weld(L_210_forvar2, ArmaClone:WaitForChild("Handle"))
-				end
-			end
-		end
-	end
-
-	for L_213_forvar1, L_214_forvar2 in pairs(ArmaClone:GetChildren()) do
-		if L_214_forvar2:IsA("BasePart") and L_214_forvar2.Name ~= "Grip" then
-			L_214_forvar2.Anchored = false
-			L_214_forvar2.CanCollide = false
-		end
-	end
-	--LoadClientMods()
-	RA, LA, Right_Weld, Left_Weld, AnimBase, AnimBaseW =
-		SetupMod(Folder, Ultil, Character, RA, LA, Right_Weld, Left_Weld, AnimBase, AnimBaseW, Settings, ArmaClone)
-	Equipped = true
-	if ArmaClone:FindFirstChild("Silenciador") ~= nil then
-		if Silencer.Value == true then
-			ArmaClone.Silenciador.Transparency = 0
-			ArmaClone.SmokePart.FlashFX.Brightness = 0
-			ArmaClone.SmokePart:FindFirstChild("FlashFX[Flash]").Rate = 0
-			Evt.SilencerEquip:FireServer(ArmaClient, Silencer.Value)
-		else
-			ArmaClone.Silenciador.Transparency = 1
-			ArmaClone.SmokePart.FlashFX.Brightness = 5
-			ArmaClone.SmokePart:FindFirstChild("FlashFX[Flash]").Rate = 1000
-			Evt.SilencerEquip:FireServer(ArmaClient, Silencer.Value)
-		end
-	end
-end
-
-function Unset()
-	if ArmaClient then
-		Evt.Desequipar:FireServer(ArmaClient, Settings)
-	end
-	UnloadClientMods()
-
-	if Folder then
-		Folder:Destroy()
-	end
-	Equipped = false
-	Aiming = false
-	Safe = false
-	Bipod = false
-	LanternaAtiva = false
-	IRmode = false
-	LaserAtivo = false
-	--Silencer = false
-	CancelReload = false
-	Reloading = false
-	slideback = false
-	OverHeat = false
-	uis.MouseIconEnabled = true
-	game:GetService("UserInputService").MouseDeltaSensitivity = 1
-	Camera.CameraType = Enum.CameraType.Custom
-	Player.CameraMode = Enum.CameraMode.Classic
-	AimPartMode = 1
-	stance = 0
-	tweenFoV(70, 15)
-	TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.3), {ImageTransparency = 1}):Play()
-	Evt.SVLaser:FireServer(Vector3.new(0, 0, 0), 2, nil, ArmaClient, IRmode)
-	if Gui then
-		Gui.Visible = false
-	end
-
-	for _, c in pairs(Connections) do
-		c:disconnect()
-	end
-	Connections = {}
-	Walking = false
-	a = false
-	d = false
-end
-
-function Update_Gui()
-	if CanUpdateGui then
-		if ArmaClone:FindFirstChild("BipodPoint") ~= nil then
-			Gui.Bipod.Visible = true
-		else
-			Gui.Bipod.Visible = false
-		end
-
-		if Settings.ArcadeMode == true then
-			Gui.Ammo.Visible = true
-			Gui.Ammo.AText.Text = Ammo.Value .. "|" .. Settings.Ammo
-		else
-			Gui.Ammo.Visible = false
-		end
-
-		if Settings.FireModes.Explosive == true and GLChambered.Value == true then
-			Gui.E.ImageColor3 = Color3.fromRGB(255, 255, 255)
-			Gui.E.Visible = true
-		elseif Settings.FireModes.Explosive == true and GLChambered.Value == false then
-			Gui.E.ImageColor3 = Color3.fromRGB(255, 0, 0)
-			Gui.E.Visible = true
-		elseif Settings.FireModes.Explosive == false then
-			Gui.E.Visible = false
-		end
-
-		if Safe == true then
-			Gui.A.Visible = true
-		else
-			Gui.A.Visible = false
-		end
-
-		if Chambered.Value == true and Ammo.Value > 0 and Emperrado.Value == false then
-			Gui.B.Visible = true
-			Gui.B.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		elseif Chambered.Value == true and Ammo.Value > 0 and Emperrado.Value == true then
-			Gui.B.Visible = true
-			Gui.B.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-		else
-			Gui.B.Visible = false
-		end
-		Gui.FText.Text = Settings.Mode
-
-		if Settings.Mode ~= "Explosive" then
-			Gui.BText.Text = Settings.BulletType
-		else
-			Gui.BText.Text = "HEDP"
-		end
-		Gui.Sens.Text = (Sens.Value / 100)
-		Gui.ZeText.Text = Zeroing.Value .. " m"
-		Gui.NText.Text = Settings.Name
-
-		if Settings.Mode ~= "Explosive" then
-			if Settings.MagCount then
-				Gui.SAText.Text = math.ceil(StoredAmmo.Value / Settings.Ammo)
-			else
-				Gui.SAText.Text = StoredAmmo.Value
-			end
-		else
-			Gui.SAText.Text = GLAmmo.Value
-		end
-
-		if Silencer.Value == true then
-			Gui.Silencer.Visible = true
-		else
-			Gui.Silencer.Visible = false
-		end
-
-		if LaserAtivo == true then
-			Gui.Laser.Visible = true
-			if IRmode then
-				Gui.Laser.ImageColor3 = Color3.new(0, 255, 0)
-			else
-				Gui.Laser.ImageColor3 = Color3.new(255, 255, 255)
-			end
-		else
-			Gui.Laser.Visible = false
-		end
-
-		if LanternaAtiva == true then
-			Gui.Flash.Visible = true
-		else
-			Gui.Flash.Visible = false
-		end
-	end
-end
-
-function CheckMagFunction()
-	if CanUpdateGui then
-		Gui.CMText.TextTransparency = 0
-		Gui.CMText.TextStrokeTransparency = 0.9
-		if Ammo.Value >= Settings.Ammo then
-			Gui.CMText.Text = "Full"
-		elseif Ammo.Value > math.floor((Settings.Ammo) * .75) and Ammo.Value < Settings.Ammo then
-			Gui.CMText.Text = "Nearly full"
-		elseif Ammo.Value < math.floor((Settings.Ammo) * .75) and Ammo.Value > math.floor((Settings.Ammo) * .5) then
-			Gui.CMText.Text = "Almost half"
-		elseif Ammo.Value == math.floor((Settings.Ammo) * .5) then
-			Gui.CMText.Text = "Half"
-		elseif Ammo.Value > math.ceil((Settings.Ammo) * .25) and Ammo.Value < math.floor((Settings.Ammo) * .5) then
-			Gui.CMText.Text = "Less than half"
-		elseif Ammo.Value < math.ceil((Settings.Ammo) * .25) and Ammo.Value > 0 then
-			Gui.CMText.Text = "Almost empty"
-		elseif Ammo.Value == 0 then
-			Gui.CMText.Text = "Empty"
-		end
-		TS:Create(Gui.CMText, TweenInfo.new(10), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
-	end
-end
-
-function Sprint()
-	if Equipped then
-		if Correndo and SpeedPrecision > 0 then
-			MouseHeld = false
-			if Aiming then
-				game:GetService("UserInputService").MouseDeltaSensitivity = 1
-				ArmaClone.Handle.AimUp:Play()
-				tweenFoV(70, 120)
-				Aiming = false
-				if Settings.adsMesh1 or Settings.adsMesh2 then
-                    --[[				TS:Create(ArmaClone.REG, TweenInfo.new(0), {Transparency = 0}):Play()
-					if ArmaClone:FindFirstChild("REG2") then
-						TS:Create(ArmaClone.REG2, TweenInfo.new(0), {Transparency =0}):Play()
-					end
-]]
-					for _, v in pairs(ArmaClone:GetDescendants()) do
-						if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-							if v.Name == "REG" then
-								TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-							end
-						end
-					end
-					for _, v in pairs(ArmaClone:GetDescendants()) do
-						if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-							if v.Name == "ADS" then
-								TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-							end
-						end
-					end
-					for _, v in pairs(ArmaClone:GetDescendants()) do
-						if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-							if v.Name == "ADS2" then
-								TS:Create(v, TweenInfo.new(0), {Transparency = 0.6}):Play()
-								screenx = v:WaitForChild("SurfaceGui")
-								screenx.AlwaysOnTop = false
-								UnBlurTween:Play()
-							end
-						end
-					end
-
-					for _, v in pairs(ArmaClone:GetDescendants()) do
-						if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-							if v.Name == "GlassSight" then
-								TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-							end
-						end
-					end
-
-					for _, v in pairs(ArmaClone:GetDescendants()) do
-						if v:IsA("ImageLabel") then
-							if v.Name == "Shadow" then
-								TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 1}):Play()
-							end
-						end
-					end
-				end
-				TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.3), {ImageTransparency = 1}):Play()
-				TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
-			end
-			if not Safe and not AnimDebounce then
-				stance = 3
-				Evt.Stance:FireServer(stance, Settings, Anims, ArmaClient)
-				SprintAnim()
-			end
-		elseif not Correndo or SpeedPrecision == 0 then
-			if not Safe and not AnimDebounce then
-				if Aiming then
-					stance = 2
-					Evt.Stance:FireServer(stance, Settings, Anims, ArmaClient)
-					IdleAnim()
-				else
-					stance = 0
-					Evt.Stance:FireServer(stance, Settings, Anims, ArmaClient)
-					IdleAnim()
-				end
-			end
-		end
-	end
-end
-
-Sprinting.Changed:connect(
-	function(Valor)
-		Correndo = Valor
-		Sprint()
-	end
-)
-
---Ammo.Changed:connect(Update_Gui)
---StoredAmmo.Changed:connect(Update_Gui)
---GLAmmo.Changed:connect(Update_Gui)
-
-local RAD, SIN, ATAN, COS = math.rad, math.sin, math.atan2, math.cos
-
---------------------[ MATH FUNCTIONS ]------------------------------------------------
+local ModStorageFolder 	= plr.PlayerGui:FindFirstChild('ModStorage') or Instance.new('Folder')
+ModStorageFolder.Parent = plr.PlayerGui
+ModStorageFolder.Name 	= 'ModStorage'
 
 function RAND(Min, Max, Accuracy)
 	local Inverse = 1 / (Accuracy or 1)
 	return (math.random(Min * Inverse, Max * Inverse) / Inverse)
 end
 
----------------------[ TWEEN MODULE ]-------------------------------------------------
+SE_GUI = HUDs:WaitForChild("StatusUI"):Clone()
+SE_GUI.Parent = plr.PlayerGui 
 
-function tweenFoV(goal, frames)
-	coroutine.resume(
-		coroutine.create(
-			function()
-				SFn = SFn and SFn + 1 or 0
-				local SFn_S = SFn
-				for i = 1, frames do
-					if SFn ~= SFn_S then
-						break
-					end
-					Camera.FieldOfView = Camera.FieldOfView + (goal - Camera.FieldOfView) * (i / frames)
-					game:GetService("RunService").RenderStepped:wait()
-				end
-			end
-		)
-	)
+local BloodScreen 		= TS:Create(SE_GUI.Efeitos.Health, TweenInfo.new(1,Enum.EasingStyle.Circular,Enum.EasingDirection.InOut,-1,true), {Size =  UDim2.new(1.2,0,1.4,0)})
+local BloodScreenLowHP 	= TS:Create(SE_GUI.Efeitos.LowHealth, TweenInfo.new(1,Enum.EasingStyle.Circular,Enum.EasingDirection.InOut,-1,true), {Size =  UDim2.new(1.2,0,1.4,0)})
+
+local Crosshair = SE_GUI.Crosshair
+
+local RecoilSpring = SpringMod.new(Vector3.new())
+RecoilSpring.d = .1
+RecoilSpring.s = 20
+
+local cameraspring = SpringMod.new(Vector3.new())
+cameraspring.d	= .5
+cameraspring.s	= 20
+
+local Spring = SpringMod.new(Vector3.new())
+Spring.d = 0.35
+Spring.s = 25
+local damp = 0.8
+
+local SwaySpring = SpringMod.new(Vector3.new())
+SwaySpring.d = 0.35
+SwaySpring.s = 15
+
+local TWAY, XSWY, YSWY = 0,0,0
+
+local oldtick = tick()
+local xTilt = 0
+local yTilt = 0
+local lastPitch = 0
+local lastYaw = 0
+
+local Stance = Evt.Stance
+local Stances = 0
+local Virar = 0
+local CameraX = 0
+local CameraY = 0
+
+local Sentado 		= false
+local Swimming		= false
+local falling 		= false
+local cansado 		= false
+local Crouched 		= false
+local Proned		= false
+local Steady 		= false
+local CanLean 		= true
+local ChangeStance 	= true
+
+--// Char Parts
+local Humanoid 	= char:WaitForChild('Humanoid')
+local Head 		= char:WaitForChild('Head')
+local Torso 	= char:WaitForChild('Torso')
+local HumanoidRootPart 	= char:WaitForChild('HumanoidRootPart')
+local RootJoint 		= HumanoidRootPart:WaitForChild('RootJoint')
+local Neck 				= Torso:WaitForChild('Neck')
+local Right_Shoulder 	= Torso:WaitForChild('Right Shoulder')
+local Left_Shoulder 	= Torso:WaitForChild('Left Shoulder')
+local Right_Hip 		= Torso:WaitForChild('Right Hip')
+local Left_Hip 			= Torso:WaitForChild('Left Hip')
+
+local YOffset = Neck.C0.Y
+local WaistYOffset = Neck.C0.Y
+local CFNew, CFAng = CFrame.new, CFrame.Angles
+local Asin = math.asin
+local T = 0.15
+
+User.MouseIconEnabled 	= true
+plr.CameraMode 			= Enum.CameraMode.Classic
+
+cam.CameraType = Enum.CameraType.Custom
+cam.CameraSubject = Humanoid
+
+if gameRules.TeamTags then
+	local tag = Essential.TeamTag:clone()
+	tag.Parent = char
+	tag.Disabled = false
 end
 
-function Lerp(n, g, t)
-	return n + (g - n) * t
+local ShellFolder = Instance.new("Folder",ACS_Workspace)
+ShellFolder.Name = "Casings"
+local Limit = gameRules.ShellLimit
+local PhysService = game:GetService("PhysicsService")
+
+function CreateShell(Shell,Origin)
+	Evt.Shell:FireServer(Shell,Origin.WorldCFrame,WeaponData.EjectionOverride)
 end
 
-local RS = game:GetService("RunService")
-
-function tweenJoint(Joint, newC0, newC1, Alpha, Duration)
-	spawn(
-		function()
-			local newCode = math.random(-1e9, 1e9) --This creates a random code between -1000000000 and 1000000000
-			local tweenIndicator = nil
-			if (not Joint:findFirstChild("tweenCode")) then --If the joint isn't being tweened, then
-				tweenIndicator = Instance.new("IntValue")
-				tweenIndicator.Name = "tweenCode"
-				tweenIndicator.Value = newCode
-				tweenIndicator.Parent = Joint
-			else
-				tweenIndicator = Joint.tweenCode
-				tweenIndicator.Value = newCode --If the joint is already being tweened, this will change the code, and the tween loop will stop
-			end
-			--local tweenIndicator = createTweenIndicator:InvokeServer(Joint, newCode)
-			if Duration <= 0 then --If the duration is less than or equal to 0 then there's no need for a tweening loop
-				if newC0 then
-					Joint.C0 = newC0
-				end
-				if newC1 then
-					Joint.C1 = newC1
-				end
-			else
-				local Increment = 1.5 / Duration
-				local startC0 = Joint.C0
-				local startC1 = Joint.C1
-				local X = 0
-				while true do
-					RS.RenderStepped:wait() --This makes the for loop step every 1/60th of a second
-					local newX = X + Increment
-					X = (newX > 90 and 90 or newX)
-					if tweenIndicator.Value ~= newCode then
-						break
-					end --This makes sure that another tween wasn't called on the same joint
-					if (not Equipped) then
-						break
-					end --This stops the tween if the tool is deselected
-					if newC0 then
-						Joint.C0 = startC0:lerp(newC0, Alpha(X))
-					end
-					if newC1 then
-						Joint.C1 = startC1:lerp(newC1, Alpha(X))
-					end
-					if X == 90 then
-						break
-					end
-				end
-			end
-			if tweenIndicator.Value == newCode then --If this tween functions was the last one called on a joint then it will remove the code
-				tweenIndicator:Destroy()
-			end
+function SetWalkSpeed(Speed)
+	if gameRules.WeaponWeight and WeaponInHand and WeaponData.WeaponWeight then
+		if Speed - WeaponData.WeaponWeight < 1 then
+			char:WaitForChild("Humanoid").WalkSpeed = 1
+		else
+			char:WaitForChild("Humanoid").WalkSpeed = Speed - WeaponData.WeaponWeight
 		end
-	)
+	else
+		char:WaitForChild("Humanoid").WalkSpeed = Speed
+	end
 end
 
-function LoadClientMods()
-	for L_335_forvar1, L_336_forvar2 in pairs(GunMods:GetChildren()) do
-		if L_336_forvar2:IsA("LocalScript") then
-			local L_337_ = L_336_forvar2:clone()
-			L_337_.Parent = ModStorageFolder
-			L_337_.Disabled = false
+Evt.Shell.OnClientEvent:Connect(function(Shell,Origin,Override)
+	local Distance = (char.Torso.Position - Origin.Position).Magnitude
+	local shellFolder
+	if Engine.AmmoModels:FindFirstChild(Shell) then
+		shellFolder = Engine.AmmoModels:FindFirstChild(Shell)
+	else
+		shellFolder = Engine.AmmoModels.Default
+	end
+
+	local shellStats = require(shellFolder.EjectionForce)
+
+	if Distance < 100 then
+		local NewShell = shellFolder.Casing:Clone()
+		NewShell.Parent = ShellFolder
+		NewShell.Anchored = false
+		NewShell.CanCollide = true
+		NewShell.CFrame = Origin * CFrame.Angles(0,math.rad(0),0)	
+		NewShell.Name = Shell.."_Casing"
+		NewShell.CastShadow = false
+		NewShell.CustomPhysicalProperties = shellStats.PhysProperties
+
+		PhysService:SetPartCollisionGroup(NewShell,"Casings")
+		local Att = Instance.new("Attachment",NewShell)
+		Att.Position = shellStats.ForcePoint
+		local ShellForce = Instance.new("VectorForce",NewShell)
+		ShellForce.Visible = false
+
+		if Override then
+			ShellForce.Force = Override
+		else
+			ShellForce.Force = shellStats.CalculateForce()
+		end
+
+		ShellForce.Attachment0 = Att
+		Debris:AddItem(ShellForce,0.01)
+
+		if #ShellFolder:GetChildren() > Limit then
+			ShellFolder:GetChildren()[math.random(#ShellFolder:GetChildren()/2,#ShellFolder:GetChildren())]:Destroy()
+		end
+
+		--NewShell.Touched:Connect(function(partTouched)
+		--	if NewShell.AssemblyLinearVelocity.Magnitude > 20 and not partTouched:IsDescendantOf(char) and partTouched.CanCollide then
+		--		local NewSound = NewShell.Drop:Clone()
+		--		NewSound.Parent = NewShell
+		--		NewSound.PlaybackSpeed = math.random(30,50)/40
+		--		NewSound:Play()
+		--		NewSound.PlayOnRemove = true
+		--		NewSound:Destroy()
+		--		Debris:AddItem(NewSound,2)
+		--	end
+		--end)
+
+		if gameRules.ShellDespawn > 0 then Debris:AddItem(NewShell,gameRules.ShellDespawn) end
+
+		wait(0.25)
+		if NewShell and NewShell:FindFirstChild("Drop") then
+			local NewSound = NewShell.Drop:Clone()
+			NewSound.Parent = NewShell
+			NewSound.PlaybackSpeed = math.random(30,50)/40
+			NewSound:Play()
+			NewSound.PlayOnRemove = true
+			NewSound:Destroy()
+			Debris:AddItem(NewSound,2)
+		end
+	end
+end)
+
+local function handleAction(actionName, inputState, inputObject)
+
+	if PreviousTool and canDrop and actionName == "DropWeapon" and inputState == Enum.UserInputState.Begin and gameRules.WeaponDropping then
+		Evt.DropWeapon:FireServer(PreviousTool,require(PreviousTool.ACS_Settings))
+		canDrop = false
+	end
+
+	if actionName == "Fire" and inputState == Enum.UserInputState.Begin and AnimDebounce then
+		Shoot()
+
+		if WeaponData and WeaponData.Type == "Grenade" then
+			CookGrenade = true
+			Grenade()
+		end
+
+	elseif actionName == "Fire" and inputState == Enum.UserInputState.End then
+		mouse1down = false
+		CookGrenade = false
+	end
+
+	if actionName == "Reload" and inputState == Enum.UserInputState.Begin and AnimDebounce and not CheckingMag and not reloading then
+		if WeaponData.Jammed then
+			Jammed()
+		else
+			Reload()
+		end
+	end
+
+	if actionName == "Reload" and inputState == Enum.UserInputState.Begin and reloading and WeaponData.ShellInsert then
+		CancelReload = true
+	end
+
+	if actionName == "CycleLaser" and inputState == Enum.UserInputState.Begin and LaserAtt then
+		SetLaser()
+	end
+
+	if actionName == "CycleLight" and inputState == Enum.UserInputState.Begin and TorchAtt then
+		SetTorch()
+	end
+
+	if actionName == "CycleFiremode" and inputState == Enum.UserInputState.Begin and WeaponData and WeaponData.FireModes.ChangeFiremode then
+		Firemode()
+	end
+
+	if actionName == "CycleAimpart" and inputState == Enum.UserInputState.Begin then
+		SetAimpart()
+	end
+
+	if actionName == "ZeroUp" and inputState == Enum.UserInputState.Begin and WeaponData and WeaponData.EnableZeroing  then
+		if WeaponData.CurrentZero < WeaponData.MaxZero then
+			WeaponInHand.Handle.Click:play()
+			WeaponData.CurrentZero = math.min(WeaponData.CurrentZero + WeaponData.ZeroIncrement, WeaponData.MaxZero) 
+			UpdateGui()
+		end
+	end
+
+	if actionName == "ZeroDown" and inputState == Enum.UserInputState.Begin and WeaponData and WeaponData.EnableZeroing  then
+		if WeaponData.CurrentZero > 0 then
+			WeaponInHand.Handle.Click:play()
+			WeaponData.CurrentZero = math.max(WeaponData.CurrentZero - WeaponData.ZeroIncrement, 0) 
+			UpdateGui()
+		end
+	end
+
+	if actionName == "CheckMag" and inputState == Enum.UserInputState.Begin and not CheckingMag and not reloading and not runKeyDown and AnimDebounce and WeaponData.CanCheckMag then
+		CheckMagFunction()
+	end
+
+	if actionName == "ToggleBipod" and inputState == Enum.UserInputState.Begin and CanBipod then
+
+		BipodActive = not BipodActive
+		UpdateGui()
+	end
+
+	if actionName == "NVG" and inputState == Enum.UserInputState.Begin and not NVGdebounce then
+		if not plr.Character then return; end;
+		local helmet = plr.Character:FindFirstChild("Helmet")
+		if not helmet then return; end;
+		local nvg = helmet:FindFirstChild("Up")
+		if not nvg then return; end;
+		NVGdebounce = true
+		delay(.8,function()
+			NVG = not NVG
+			Evt.NVG:Fire(NVG)
+			NVGdebounce = false		
+		end)
+	end
+
+
+--[[
+	if actionName == "ADS" and inputState == Enum.UserInputState.Begin and AnimDebounce then
+		if WeaponData and WeaponData.canAim and GunStance > -2 and not runKeyDown and not CheckingMag then
+			aimming = not aimming
+			ADS(aimming)
+		end
+		
+		if WeaponData.Type == "Grenade" then
+			GrenadeMode()
+		end
+	end
+]]
+
+	if actionName == "Stand" and inputState == Enum.UserInputState.Begin and ChangeStance and not Swimming and not Sentado and not runKeyDown and not ACS_Client:GetAttribute("Collapsed") then
+		if Stances == 2 then
+			Crouched = true
+			Proned = false
+			Stances = 1
+			CameraY = -1
+			Crouch()
+
+
+		elseif Stances == 1 then		
+			Crouched = false
+			Stances = 0
+			CameraY = 0
+			Stand()
+		end	
+	end
+
+	if actionName == "Crouch" and inputState == Enum.UserInputState.Begin and ChangeStance and not Swimming and not Sentado and not runKeyDown and not ACS_Client:GetAttribute("Collapsed") then
+		if Stances == 0 then
+			Stances = 1
+			CameraY = -1
+			Crouch()
+			Crouched = true
+		elseif Stances == 1 then	
+			Stances = 2
+			CameraX = 0
+			CameraY = -3.25
+			Virar = 0
+			Lean()
+			Prone()
+			Crouched = false
+			Proned = true
+		end
+	end
+
+	if actionName == "ToggleWalk" and inputState == Enum.UserInputState.Begin and ChangeStance and not runKeyDown then
+		Steady = not Steady
+
+		SE_GUI.MainFrame.Poses.Steady.Visible = Steady
+
+		if Stances == 0 then
+			Stand()
+		end
+	end
+
+	if actionName == "LeanLeft" and inputState == Enum.UserInputState.Begin and Stances ~= 2 and ChangeStance and not Swimming and not runKeyDown and CanLean and not ACS_Client:GetAttribute("Collapsed") then
+		if Virar == 0 or Virar == 1 then
+			Virar = -1
+			CameraX = -1.25
+		else
+			Virar = 0
+			CameraX = 0
+		end
+		Lean()
+	end
+
+	if actionName == "LeanRight" and inputState == Enum.UserInputState.Begin and Stances ~= 2 and ChangeStance and not Swimming and not runKeyDown and CanLean and not ACS_Client:GetAttribute("Collapsed") then
+		if Virar == 0 or Virar == -1 then
+			Virar = 1
+			CameraX = 1.25
+		else
+			Virar = 0
+			CameraX = 0
+		end
+		Lean()
+	end
+
+	if actionName == "Run" and inputState == Enum.UserInputState.Begin and running and not script.Parent:GetAttribute("Injured") then
+		mouse1down = false		
+		runKeyDown 	= true
+		Stand()
+		Stances = 0
+		Virar = 0
+		CameraX = 0
+		CameraY = 0
+		Lean()
+
+		--SetWalkSpeed(gameRules.RunWalkSpeed)
+
+		if aimming then
+			aimming = false
+			ADS(aimming)
+		end
+
+		if not CheckingMag and not reloading and WeaponData and WeaponData.Type ~= "Grenade" and (GunStance == 0 or GunStance == 2 or GunStance == 3) then
+			GunStance = 3
+			Evt.GunStance:FireServer(GunStance,AnimData)
+			SprintAnim()
+		end
+
+	elseif actionName == "Run" and inputState == Enum.UserInputState.End and runKeyDown then
+		runKeyDown 	= false
+		Stand()
+		if not CheckingMag and not reloading and WeaponData and WeaponData.Type ~= "Grenade" and (GunStance == 0 or GunStance == 2 or GunStance == 3) then
+			GunStance = 0
+			Evt.GunStance:FireServer(GunStance,AnimData)
+			IdleAnim()
+		end
+	end
+	if actionName == "IncreaseSensitivity" and inputState == Enum.UserInputState.Begin then
+		Sens = Sens + 5
+		Sens = math.min(100,Sens)
+		UpdateGui()
+		game:GetService('UserInputService').MouseDeltaSensitivity = (Sens/100)
+	end
+	if actionName == "DecreaseSensitivity" and inputState == Enum.UserInputState.Begin then
+		Sens = Sens - 5
+		Sens = math.max(5, Sens)
+		UpdateGui()
+		game:GetService('UserInputService').MouseDeltaSensitivity = (Sens/100)
+	end
+end
+
+mouse.Button2Down:Connect(function()
+	if Equipped and mouse.Button2Down and not aimming and  AnimDebounce then
+		if WeaponData and WeaponData.canAim and GunStance > -2 and not runKeyDown and not CheckingMag then
+			aimming  = not aimming
+			ADS(aimming)
+		end
+		if WeaponData.Type  == "Grenade" then
+			GrenadeMode()
+		end
+	end
+end)
+
+mouse.Button2Up:Connect(function()
+	if Equipped and mouse.Button2Up  and  AnimDebounce then
+		if WeaponData and WeaponData.canAim and GunStance > -2 and not runKeyDown and not CheckingMag then
+			aimming  = false
+			ADS(aimming)
+		end
+	end
+end)
+
+function resetMods()
+
+	ModTable.camRecoilMod.RecoilUp 		= 1
+	ModTable.camRecoilMod.RecoilLeft 	= 1
+	ModTable.camRecoilMod.RecoilRight 	= 1
+	ModTable.camRecoilMod.RecoilTilt 	= 1
+
+	ModTable.gunRecoilMod.RecoilUp 		= 1
+	ModTable.gunRecoilMod.RecoilTilt 	= 1
+	ModTable.gunRecoilMod.RecoilLeft 	= 1
+	ModTable.gunRecoilMod.RecoilRight 	= 1
+
+	ModTable.AimRM			= 1
+	ModTable.SpreadRM 		= 1
+	ModTable.DamageMod 		= 1
+	ModTable.minDamageMod 	= 1
+
+	ModTable.MinRecoilPower 		= 1
+	ModTable.MaxRecoilPower 		= 1
+	ModTable.RecoilPowerStepAmount 	= 1
+
+	ModTable.MinSpread 					= 1
+	ModTable.MaxSpread 					= 1
+	ModTable.AimInaccuracyStepAmount 	= 1
+	ModTable.AimInaccuracyDecrease 		= 1
+	ModTable.WalkMult 					= 1
+	ModTable.MuzzleVelocity 			= 1
+
+end
+
+function setMods(ModData)
+
+	ModTable.camRecoilMod.RecoilUp 		= ModTable.camRecoilMod.RecoilUp * ModData.camRecoil.RecoilUp
+	ModTable.camRecoilMod.RecoilLeft 	= ModTable.camRecoilMod.RecoilLeft * ModData.camRecoil.RecoilLeft
+	ModTable.camRecoilMod.RecoilRight 	= ModTable.camRecoilMod.RecoilRight * ModData.camRecoil.RecoilRight
+	ModTable.camRecoilMod.RecoilTilt 	= ModTable.camRecoilMod.RecoilTilt * ModData.camRecoil.RecoilTilt
+
+	ModTable.gunRecoilMod.RecoilUp 		= ModTable.gunRecoilMod.RecoilUp * ModData.gunRecoil.RecoilUp
+	ModTable.gunRecoilMod.RecoilTilt 	= ModTable.gunRecoilMod.RecoilTilt * ModData.gunRecoil.RecoilTilt
+	ModTable.gunRecoilMod.RecoilLeft 	= ModTable.gunRecoilMod.RecoilLeft * ModData.gunRecoil.RecoilLeft
+	ModTable.gunRecoilMod.RecoilRight 	= ModTable.gunRecoilMod.RecoilRight * ModData.gunRecoil.RecoilRight
+
+	ModTable.AimRM						= ModTable.AimRM * ModData.AimRecoilReduction
+	ModTable.SpreadRM 					= ModTable.SpreadRM * ModData.AimSpreadReduction
+	ModTable.DamageMod 					= ModTable.DamageMod * ModData.DamageMod
+	ModTable.minDamageMod 				= ModTable.minDamageMod * ModData.minDamageMod
+
+	ModTable.MinRecoilPower 			= ModTable.MinRecoilPower * ModData.MinRecoilPower
+	ModTable.MaxRecoilPower 			= ModTable.MaxRecoilPower * ModData.MaxRecoilPower
+	ModTable.RecoilPowerStepAmount 		= ModTable.RecoilPowerStepAmount * ModData.RecoilPowerStepAmount
+
+	ModTable.MinSpread 					= ModTable.MinSpread * ModData.MinSpread
+	ModTable.MaxSpread 					= ModTable.MaxSpread * ModData.MaxSpread
+	ModTable.AimInaccuracyStepAmount 	= ModTable.AimInaccuracyStepAmount * ModData.AimInaccuracyStepAmount
+	ModTable.AimInaccuracyDecrease 		= ModTable.AimInaccuracyDecrease * ModData.AimInaccuracyDecrease
+	ModTable.WalkMult 					= ModTable.WalkMult * ModData.WalkMult
+	ModTable.MuzzleVelocity 			= ModTable.MuzzleVelocity * ModData.MuzzleVelocityMod
+end
+
+function loadAttachment(weapon)
+	if not weapon or not weapon:FindFirstChild("Nodes") then return; end;
+	--load sight Att
+	if weapon.Nodes:FindFirstChild("Sight") and WeaponData.SightAtt ~= "" then
+
+		SightData =  require(AttModules[WeaponData.SightAtt])
+
+		SightAtt = AttModels[WeaponData.SightAtt]:Clone()
+		SightAtt.Parent = weapon
+		SightAtt:SetPrimaryPartCFrame(weapon.Nodes.Sight.CFrame)
+		weapon.AimPart.CFrame = SightAtt.AimPos.CFrame
+
+		reticle = SightAtt.SightMark.SurfaceGui.Border.Scope	
+		if SightData.SightZoom > 0 then
+			ModTable.ZoomValue = SightData.SightZoom
+		end
+		if SightData.SightZoom2 > 0 then
+			ModTable.Zoom2Value = SightData.SightZoom2
+		end
+		setMods(SightData)
+
+
+		for index, key in pairs(weapon:GetChildren()) do
+			if key.Name ~= "IS" then continue; end;
+			key.Transparency = 1
+		end
+
+		for index, key in pairs(SightAtt:GetChildren()) do
+			if not key:IsA('BasePart') then continue; end;
+			Ultil.Weld(weapon:WaitForChild("Handle"), key )
+			key.Anchored = false
+			key.CanCollide = false
+		end
+
+	end
+
+	--load Barrel Att
+	if weapon.Nodes:FindFirstChild("Barrel") ~= nil and WeaponData.BarrelAtt ~= "" then
+
+		BarrelData =  require(AttModules[WeaponData.BarrelAtt])
+
+		BarrelAtt = AttModels[WeaponData.BarrelAtt]:Clone()
+		BarrelAtt.Parent = weapon
+		BarrelAtt:SetPrimaryPartCFrame(weapon.Nodes.Barrel.CFrame)
+
+
+		if BarrelAtt:FindFirstChild("BarrelPos") ~= nil then
+			weapon.Handle.Muzzle.WorldCFrame = BarrelAtt.BarrelPos.CFrame
+		end
+
+		Suppressor 		= BarrelData.IsSuppressor
+		FlashHider 		= BarrelData.IsFlashHider
+
+		setMods(BarrelData)
+
+		for index, key in pairs(BarrelAtt:GetChildren()) do
+			if not key:IsA('BasePart') then continue; end;
+			Ultil.Weld(weapon:WaitForChild("Handle"), key )
+			key.Anchored = false
+			key.CanCollide = false
+		end
+	end
+
+	--load Under Barrel Att
+	if weapon.Nodes:FindFirstChild("UnderBarrel") ~= nil and WeaponData.UnderBarrelAtt ~= "" then
+
+		UnderBarrelData =  require(AttModules[WeaponData.UnderBarrelAtt])
+
+		UnderBarrelAtt = AttModels[WeaponData.UnderBarrelAtt]:Clone()
+		UnderBarrelAtt.Parent = weapon
+		UnderBarrelAtt:SetPrimaryPartCFrame(weapon.Nodes.UnderBarrel.CFrame)
+
+
+		setMods(UnderBarrelData)
+		BipodAtt = UnderBarrelData.IsBipod
+
+		if BipodAtt then
+			CAS:BindAction("ToggleBipod", handleAction, true, gameRules.ToggleBipod)
+		end
+
+		for index, key in pairs(UnderBarrelAtt:GetChildren()) do
+			if not key:IsA('BasePart') then continue; end;
+			Ultil.Weld(weapon:WaitForChild("Handle"), key )
+			key.Anchored = false
+			key.CanCollide = false
+		end
+	end
+
+	if weapon.Nodes:FindFirstChild("Other") ~= nil and WeaponData.OtherAtt ~= "" then
+
+		OtherData =  require(AttModules[WeaponData.OtherAtt])
+
+		OtherAtt = AttModels[WeaponData.OtherAtt]:Clone()
+		OtherAtt.Parent = weapon
+		OtherAtt:SetPrimaryPartCFrame(weapon.Nodes.Other.CFrame)
+
+
+		setMods(OtherData)
+		LaserAtt = OtherData.EnableLaser
+		TorchAtt = OtherData.EnableFlashlight
+
+		if OtherData.InfraRed then
+			IREnable = true
+		end
+
+		for index, key in pairs(OtherAtt:GetChildren()) do
+			if not key:IsA('BasePart') then continue; end;
+			Ultil.Weld(weapon:WaitForChild("Handle"), key )
+			key.Anchored = false
+			key.CanCollide = false
 		end
 	end
 end
 
-function UnloadClientMods()
-	for L_335_forvar1, L_336_forvar2 in pairs(ModStorageFolder:GetChildren()) do
-		if L_336_forvar2:IsA("LocalScript") then
-			L_336_forvar2:Destroy()
+function SetLaser()
+	if gameRules.RealisticLaser and IREnable then
+		if not LaserActive and not IRmode then
+			LaserActive = true
+			IRmode = true
+		elseif LaserActive and IRmode then
+			IRmode = false
+		else
+			LaserActive = false
+			IRmode = false
+		end
+	else
+		LaserActive = not LaserActive
+	end
+
+	WeaponInHand.Handle.Click:play()
+	UpdateGui()
+
+	if LaserActive then
+		if Pointer then
+			return
+		end
+		for index, Key in pairs(WeaponInHand:GetDescendants()) do
+			if not Key:IsA("BasePart") or Key.Name ~= "LaserPoint" then
+				continue
+			end
+			local LaserPointer = Instance.new("Part", Key)
+			LaserPointer.Shape = "Ball"
+			LaserPointer.Size = Vector3.new(0.05, 0.05, 0.05)
+			LaserPointer.CanCollide = false
+			LaserPointer.Color = Key.Color
+			LaserPointer.Material = Enum.Material.Neon
+			LaserPointer.Transparency = 0.9
+
+			local laserLight = Instance.new("PointLight", LaserPointer)
+			laserLight.Color = Key.Color
+			laserLight.Range = 1
+			laserLight.Brightness = 4
+			laserLight.Enabled = true
+			laserLight.Shadows = true
+
+			local LaserSP = Instance.new("Attachment", Key)
+			local LaserEP = Instance.new("Attachment", LaserPointer)
+
+			local Laser = Instance.new("Beam", LaserPointer)
+			Laser.Transparency = NumberSequence.new(0)
+			Laser.LightEmission = 1
+			Laser.LightInfluence = 1
+			Laser.Attachment0 = LaserSP
+			Laser.Attachment1 = LaserEP
+			Laser.Color = ColorSequence.new(Key.Color)
+			Laser.FaceCamera = true
+			Laser.Width0 = 0.01
+			Laser.Width1 = 0.01
+
+			if gameRules.RealisticLaser then
+				Laser.Enabled = false
+			end
+
+			Pointer = LaserPointer
+			break
+		end
+	else
+		-- reset the range display
+		local rangeFinderScreen = WeaponInHand:FindFirstChild("RangeFinderScreen")
+		if rangeFinderScreen then
+			local rangeLabel = rangeFinderScreen:FindFirstChild("RangeFinderGUI") and rangeFinderScreen.RangeFinderGUI:FindFirstChild("TextFrame") and rangeFinderScreen.RangeFinderGUI.TextFrame:FindFirstChild("Range")
+			if rangeLabel and rangeLabel:IsA("TextLabel") then
+				rangeLabel.Text = ""
+			end
+		end
+
+		for index, Key in pairs(WeaponInHand:GetDescendants()) do
+			if not Key:IsA("BasePart") or Key.Name ~= "LaserPoint" then
+				continue
+			end
+
+			Key:ClearAllChildren()
+			break
+		end
+		Pointer = nil
+		if gameRules.ReplicatedLaser then
+			Evt.SVLaser:FireServer(nil, 2, nil, false, WeaponTool)
+		end
+	end
+end
+
+function SetTorch()
+
+	TorchActive = not TorchActive
+
+	for index, Key in pairs(WeaponInHand:GetDescendants()) do
+		if not Key:IsA("BasePart") or Key.Name ~= "FlashPoint" then continue; end;
+		Key.Light.Enabled = TorchActive
+	end
+
+	Evt.SVFlash:FireServer(WeaponTool,TorchActive)
+	WeaponInHand.Handle.Click:play()
+	UpdateGui()
+end
+
+function ToggleADS(Type)
+	local ADSTween
+	if WeaponData.adsTime then
+		ADSTween = TweenInfo.new(WeaponData.adsTime / 20,Enum.EasingStyle.Linear,Enum.EasingDirection.Out,0,false,WeaponData.adsTime / 20)
+	else
+		ADSTween = TweenInfo.new(0.2,Enum.EasingStyle.Linear,Enum.EasingDirection.Out,0,false,0.2)
+	end
+	if Type == "REG" then
+		for _, child in pairs(WeaponInHand:GetChildren()) do
+			if child.Name == "REG" then
+				TS:Create(child, ADSTween, {Transparency = 0}):Play()
+			elseif child.Name == "ADS" then
+				TS:Create(child, ADSTween, {Transparency = 1}):Play()
+			elseif child.Name == "HideADS"  then
+				TS:Create(child, ADSTween, {Transparency = 0}):Play()
+			end
+		end
+	elseif Type == "ADS" then
+		for _, child in pairs(WeaponInHand:GetChildren()) do
+			if child.Name == "REG" then
+				TS:Create(child, ADSTween, {Transparency = 1}):Play()
+			elseif child.Name == "ADS" then
+				TS:Create(child, ADSTween, {Transparency = 0}):Play()
+			elseif child.Name == "HideADS"  then
+				TS:Create(child, ADSTween, {Transparency = 0.11}):Play()
+			end
+		end
+	end
+end
+
+function ADS(aimming)
+	if not WeaponData or not WeaponInHand then return; end;
+	if aimming then
+
+		if SafeMode then
+			SafeMode = false
+			GunStance = 0
+			IdleAnim()
+			UpdateGui()
+		end
+
+		game:GetService('UserInputService').MouseDeltaSensitivity = (Sens/100)
+
+		WeaponInHand.Handle.AimDown:Play()
+
+		if WeaponData.ADSEnabled then
+			if WeaponData.ADSEnabled[AimPartMode] then
+				ToggleADS("ADS")
+			end
+		else
+			ToggleADS("ADS")
+		end
+
+		GunStance = 2
+		Evt.GunStance:FireServer(GunStance,AnimData)
+
+		TS:Create(Crosshair.Up, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 1}):Play()
+		TS:Create(Crosshair.Down, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 1}):Play()
+		TS:Create(Crosshair.Left, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 1}):Play()
+		TS:Create(Crosshair.Right, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 1}):Play()
+		TS:Create(Crosshair.Center, TweenInfo.new(.2,Enum.EasingStyle.Linear), {ImageTransparency = 1}):Play()
+
+	else
+		game:GetService('UserInputService').MouseDeltaSensitivity = 1
+		WeaponInHand.Handle.AimUp:Play()
+
+		ToggleADS("REG")
+
+		GunStance = 0
+		Evt.GunStance:FireServer(GunStance,AnimData)
+
+		if  WeaponData.CrossHair then
+			TS:Create(Crosshair.Up, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 0}):Play()
+			TS:Create(Crosshair.Down, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 0}):Play()
+			TS:Create(Crosshair.Left, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 0}):Play()
+			TS:Create(Crosshair.Right, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 0}):Play()
+		end
+
+		if  WeaponData.CenterDot then
+			TS:Create(Crosshair.Center, TweenInfo.new(.2,Enum.EasingStyle.Linear), {ImageTransparency = 0}):Play()
+		else
+			TS:Create(Crosshair.Center, TweenInfo.new(.2,Enum.EasingStyle.Linear), {ImageTransparency = 1}):Play()
+		end
+	end
+end
+
+function SetAimpart()
+	if aimming then
+		if AimPartMode == 1 then
+			AimPartMode = 2
+			if WeaponInHand:FindFirstChild('AimPart2') then
+				CurAimpart = WeaponInHand:FindFirstChild('AimPart2')
+			end 
+		else
+			AimPartMode = 1
+			CurAimpart = WeaponInHand:FindFirstChild('AimPart')
+		end
+		--print("Set to Aimpart: "..AimPartMode)
+		if WeaponData.ADSEnabled then
+			if WeaponData.ADSEnabled[AimPartMode] then
+				ToggleADS("ADS")
+			else
+				ToggleADS("REG")
+			end
+		end
+	end
+end
+
+function Firemode()
+
+	WeaponInHand.Handle.SafetyClick:Play()
+	mouse1down = false
+
+	---Semi Settings---		
+	if WeaponData.ShootType == 1 and WeaponData.FireModes.Burst == true then
+		WeaponData.ShootType = 2
+	elseif WeaponData.ShootType == 1 and WeaponData.FireModes.Burst == false and WeaponData.FireModes.Auto == true then
+		WeaponData.ShootType = 3
+		---Burst Settings---
+	elseif WeaponData.ShootType == 2 and WeaponData.FireModes.Auto == true then
+		WeaponData.ShootType = 3
+	elseif WeaponData.ShootType == 2 and WeaponData.FireModes.Semi == true and WeaponData.FireModes.Auto == false then
+		WeaponData.ShootType = 1
+		---Auto Settings---
+	elseif WeaponData.ShootType == 3 and WeaponData.FireModes.Semi == true then
+		WeaponData.ShootType = 1
+	elseif WeaponData.ShootType == 3 and WeaponData.FireModes.Semi == false and WeaponData.FireModes.Burst == true then
+		WeaponData.ShootType = 2
+		---Explosive Settings---
+	end
+	UpdateGui()
+
+end
+
+function setup(Tool)
+
+	if not char or not Tool or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then return; end;
+
+	local ToolCheck 		= Tool
+	local GunModelCheck 	= GunModels:FindFirstChild(Tool.Name)
+
+	if not ToolCheck or not GunModelCheck then warn("Tool Or Gun Model Doesn't Exist") return; end;
+
+	ToolEquip = true
+	User.MouseIconEnabled 	= false
+	plr.CameraMode 			= Enum.CameraMode.LockFirstPerson
+
+	WeaponTool 		= ToolCheck
+	if WeaponTool then
+		PreviousTool = WeaponTool
+		canDrop = true
+	end
+
+	WeaponData 		= require(Tool:FindFirstChild("ACS_Settings"))
+	AnimData 		= require(Tool:FindFirstChild("ACS_Animations"))
+	WeaponInHand 	= GunModelCheck:Clone()
+	WeaponInHand.PrimaryPart = WeaponInHand:WaitForChild("Handle")
+
+	Evt.Equip:FireServer(Tool,1,WeaponData,AnimData)
+
+	if WeaponData.Type == "Gun" then
+		WeaponInHand.Handle.AimDown:Play()
+		RepValues = Tool:WaitForChild("RepValues")
+	end
+
+	ViewModel = ArmModel:WaitForChild("Arms"):Clone()
+	ViewModel.Name = "Viewmodel"
+
+	if char:WaitForChild("Body Colors") then
+		local Colors = char:WaitForChild("Body Colors"):Clone()
+		Colors.Parent = ViewModel
+	end
+
+	if char:FindFirstChild("Shirt") then
+		local Shirt = char:FindFirstChild("Shirt"):Clone()
+		Shirt.Parent = ViewModel
+	end
+
+	AnimPart = Instance.new("Part",ViewModel)
+	AnimPart.Size = Vector3.new(0.1,0.1,0.1)
+	AnimPart.Anchored = true
+	AnimPart.CanCollide = false
+	AnimPart.Transparency = 1
+
+	ViewModel.PrimaryPart = AnimPart
+
+	LArmWeld = Instance.new("Motor6D",AnimPart)
+	LArmWeld.Name = "LeftArm"
+	LArmWeld.Part0 = AnimPart
+
+	RArmWeld = Instance.new("Motor6D",AnimPart)
+	RArmWeld.Name = "RightArm"
+	RArmWeld.Part0 = AnimPart
+
+	GunWeld = Instance.new("Motor6D",AnimPart)
+	GunWeld.Name = "Handle"
+
+	--setup arms to camera
+
+	ViewModel.Parent = cam
+
+	maincf = AnimData.MainCFrame
+	guncf = AnimData.GunCFrame
+
+	larmcf = AnimData.LArmCFrame
+	rarmcf = AnimData.RArmCFrame
+
+
+	if  WeaponData.CrossHair then
+		TS:Create(Crosshair.Up, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 0}):Play()
+		TS:Create(Crosshair.Down, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 0}):Play()
+		TS:Create(Crosshair.Left, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 0}):Play()
+		TS:Create(Crosshair.Right, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 0}):Play()	
+
+		if WeaponData.Bullets > 1 then
+			Crosshair.Up.Rotation = 90
+			Crosshair.Down.Rotation = 90
+			Crosshair.Left.Rotation = 90
+			Crosshair.Right.Rotation = 90
+		else
+			Crosshair.Up.Rotation = 0
+			Crosshair.Down.Rotation = 0
+			Crosshair.Left.Rotation = 0
+			Crosshair.Right.Rotation = 0
+		end
+
+	else
+		TS:Create(Crosshair.Up, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 1}):Play()
+		TS:Create(Crosshair.Down, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 1}):Play()
+		TS:Create(Crosshair.Left, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 1}):Play()
+		TS:Create(Crosshair.Right, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 1}):Play()
+	end
+
+	if  WeaponData.CenterDot then
+		TS:Create(Crosshair.Center, TweenInfo.new(.2,Enum.EasingStyle.Linear), {ImageTransparency = 0}):Play()
+	else
+		TS:Create(Crosshair.Center, TweenInfo.new(.2,Enum.EasingStyle.Linear), {ImageTransparency = 1}):Play()
+	end
+
+	LArm = ViewModel:WaitForChild("Left Arm")
+	LArmWeld.Part1 = LArm
+	LArmWeld.C0 = CFrame.new()
+	LArmWeld.C1 = CFrame.new(1,-1,-5) * CFrame.Angles(math.rad(0),math.rad(0),math.rad(0)):inverse()
+
+	RArm = ViewModel:WaitForChild("Right Arm")
+	RArmWeld.Part1 = RArm
+	RArmWeld.C0 = CFrame.new()
+	RArmWeld.C1 = CFrame.new(-1,-1,-5) * CFrame.Angles(math.rad(0),math.rad(0),math.rad(0)):inverse()
+	GunWeld.Part0 = RArm
+
+	LArm.Anchored = false
+	RArm.Anchored = false
+
+	--setup weapon to camera
+	ModTable.ZoomValue 		= WeaponData.Zoom
+	ModTable.Zoom2Value 	= WeaponData.Zoom2
+	IREnable 				= WeaponData.InfraRed
+
+
+	CAS:BindAction("Fire", handleAction, true, Enum.UserInputType.MouseButton1, Enum.KeyCode.ButtonR2)
+	--CAS:BindAction("ADS", handleAction, true, Enum.UserInputType.MouseButton2, Enum.KeyCode.ButtonL2) 
+	CAS:BindAction("Reload", handleAction, true, gameRules.Reload, Enum.KeyCode.ButtonB)
+	CAS:BindAction("CycleAimpart", handleAction, false, gameRules.SwitchSights)
+
+	CAS:BindAction("CycleLaser", handleAction, true, gameRules.ToggleLaser)
+	CAS:BindAction("CycleLight", handleAction, true, gameRules.ToggleLight)
+
+	CAS:BindAction("CycleFiremode", handleAction, false, gameRules.FireMode)
+	CAS:BindAction("CheckMag", handleAction, false, gameRules.CheckMag)
+
+	CAS:BindAction("ZeroDown", handleAction, false, gameRules.ZeroDown)
+	CAS:BindAction("ZeroUp", handleAction, false, gameRules.ZeroUp)
+	
+	CAS:BindAction("IncreaseSensitivity", handleAction, false, Enum.KeyCode.Equals)
+	CAS:BindAction("DecreaseSensitivity", handleAction, false, Enum.KeyCode.Minus)
+
+	CAS:BindAction("DropWeapon", handleAction, true, gameRules.DropGun)
+
+	loadAttachment(WeaponInHand)
+
+	BSpread				= math.min(WeaponData.MinSpread * ModTable.MinSpread, WeaponData.MaxSpread * ModTable.MaxSpread)
+	RecoilPower 		= math.min(WeaponData.MinRecoilPower * ModTable.MinRecoilPower, WeaponData.MaxRecoilPower * ModTable.MaxRecoilPower)
+
+	if RepValues then
+		Ammo = RepValues.Mag.Value
+		StoredAmmo = RepValues.StoredAmmo.Value
+	else
+		Ammo = WeaponData.Ammo
+		StoredAmmo = WeaponData.StoredAmmo
+	end
+	CurAimpart = WeaponInHand:FindFirstChild("AimPart")
+
+	for _, cPart in pairs(WeaponInHand:GetChildren()) do
+		if cPart.Name == "Warhead" and Ammo < 1 then
+			cPart.Transparency = 1
+		end
+	end
+
+	for index, Key in pairs(WeaponInHand:GetDescendants()) do
+		if Key:IsA("BasePart") and Key.Name == "FlashPoint" then
+			TorchAtt = true
+		end
+		if Key:IsA("BasePart") and Key.Name == "LaserPoint" then
+			LaserAtt = true
+		end
+	end
+
+	if WeaponData.Type == "Gun" and WeaponData.ShellEjectionMod then
+		WeaponInHand.Bolt.SlidePull.Played:Connect(function()
+			--print(canPump)
+			if Ammo > 0 or canPump then
+				CreateShell(WeaponData.BulletType,WeaponInHand.Handle.Chamber)
+				WeaponInHand.Handle.Chamber.Smoke:Emit(10)
+				canPump = false
+			end
+		end)
+	end
+
+	if WeaponData.EnableHUD then
+		SE_GUI.GunHUD.Visible = true
+	end
+	UpdateGui()
+
+	for index, key in pairs(WeaponInHand:GetChildren()) do
+		if key:IsA('BasePart') and key.Name ~= 'Handle' then
+
+			if key.Name ~= "Bolt" and key.Name ~= 'Lid' and key.Name ~= "Slide" then
+				Ultil.Weld(WeaponInHand:WaitForChild("Handle"), key)
+			end
+
+			if key.Name == "Bolt" or key.Name == "Slide" then
+				Ultil.WeldComplex(WeaponInHand:WaitForChild("Handle"), key, key.Name)
+			end;
+
+			if key.Name == "Lid" then
+				if WeaponInHand:FindFirstChild('LidHinge') then
+					Ultil.Weld(key, WeaponInHand:WaitForChild("LidHinge"))
+				else
+					Ultil.Weld(key, WeaponInHand:WaitForChild("Handle"))
+				end
+			end
+		end
+	end;
+
+	for L_213_forvar1, L_214_forvar2 in pairs(WeaponInHand:GetChildren()) do
+		if L_214_forvar2:IsA('BasePart') then
+			L_214_forvar2.Anchored = false
+			L_214_forvar2.CanCollide = false
+		end
+	end;
+
+	if WeaponInHand:FindFirstChild("Nodes") then
+		for L_213_forvar1, L_214_forvar2 in pairs(WeaponInHand.Nodes:GetChildren()) do
+			if L_214_forvar2:IsA('BasePart') then
+				Ultil.Weld(WeaponInHand:WaitForChild("Handle"), L_214_forvar2)
+				L_214_forvar2.Anchored = false
+				L_214_forvar2.CanCollide = false
+			end
+		end;
+	end
+
+	GunWeld.Part1 = WeaponInHand:WaitForChild("Handle")
+	GunWeld.C1 = guncf
+
+	--WeaponInHand:SetPrimaryPartCFrame( RArm.CFrame * guncf)
+
+	WeaponInHand.Parent = ViewModel	
+	if Ammo <= 0 and WeaponData.Type == "Gun" then
+		WeaponInHand.Handle.Slide.C0 = WeaponData.SlideEx:inverse()
+	end
+	EquipAnim()
+	if WeaponData and WeaponData.Type ~= "Grenade" then
+		RunCheck()
+	end
+
+end
+
+function unset()
+	ToolEquip = false
+	Evt.Equip:FireServer(WeaponTool,2)
+	--unsetup weapon data module
+	CAS:UnbindAction("Fire")
+	--CAS:UnbindAction("ADS")
+	CAS:UnbindAction("Reload")
+	CAS:UnbindAction("CycleLaser")
+	CAS:UnbindAction("CycleLight")
+	CAS:UnbindAction("CycleFiremode")
+	CAS:UnbindAction("CycleAimpart")
+	CAS:UnbindAction("ZeroUp")
+	CAS:UnbindAction("ZeroDown")
+	CAS:UnbindAction("CheckMag")
+
+	mouse1down = false
+	aimming = false
+
+	TS:Create(cam,AimTween,{FieldOfView = 70}):Play()
+	TS:Create(Crosshair.Up, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 1}):Play()
+	TS:Create(Crosshair.Down, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 1}):Play()
+	TS:Create(Crosshair.Left, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 1}):Play()
+	TS:Create(Crosshair.Right, TweenInfo.new(.2,Enum.EasingStyle.Linear), {BackgroundTransparency = 1}):Play()
+	TS:Create(Crosshair.Center, TweenInfo.new(.2,Enum.EasingStyle.Linear), {ImageTransparency = 1}):Play()
+
+	User.MouseIconEnabled = true
+	game:GetService('UserInputService').MouseDeltaSensitivity = 1
+	cam.CameraType = Enum.CameraType.Custom
+	plr.CameraMode = Enum.CameraMode.Classic
+
+	if WeaponInHand then
+
+		if WeaponData.Type == "Gun" then
+			local chambered = true
+			if WeaponData.Jammed or Ammo < 1 then chambered = false end
+			Evt.RepAmmo:FireServer(WeaponTool,Ammo,StoredAmmo,WeaponData.Jammed)
+			--WeaponData.AmmoInGun = Ammo
+			--WeaponData.StoredAmmo = StoredAmmo
+		end
+
+		ViewModel:Destroy()
+		ViewModel 		= nil
+		WeaponInHand	= nil
+		WeaponTool		= nil
+		LArm 			= nil
+		RArm 			= nil
+		LArmWeld 		= nil
+		RArmWeld 		= nil
+		WeaponData 		= nil
+		AnimData		= nil
+		SightAtt		= nil
+		reticle			= nil
+		BarrelAtt 		= nil
+		UnderBarrelAtt 	= nil
+		OtherAtt 		= nil
+		LaserAtt 		= false
+		LaserActive		= false
+		IRmode			= false
+		TorchAtt 		= false
+		TorchActive 	= false
+		BipodAtt 		= false
+		BipodActive 	= false
+		LaserDist 		= 0
+		Pointer 		= nil
+		BSpread 		= nil
+		RecoilPower 	= nil
+		Suppressor 		= false
+		FlashHider 		= false
+		CancelReload 	= false
+		reloading 		= false
+		SafeMode		= false
+		CheckingMag		= false
+		GRDebounce 		= false
+		CookGrenade 	= false
+		GunStance 		= 0
+		resetMods()
+		generateBullet 	= 1
+		AimPartMode 	= 1
+
+		SE_GUI.GunHUD.Visible = false
+		SE_GUI.GrenadeForce.Visible = false
+		BipodCF = CFrame.new()
+		if gameRules.ReplicatedLaser then
+			Evt.SVLaser:FireServer(nil,2,nil,false,WeaponTool)
+		end
+	end
+
+	--if runKeyDown then
+	--	SetWalkSpeed(gameRules.RunWalkSpeed)
+	--elseif Crouched then
+	--	SetWalkSpeed(gameRules.CrouchWalkSpeed)
+	--elseif Proned then
+	--	SetWalkSpeed(gameRules.ProneWalkSpeed)
+	--elseif Steady then
+	--	SetWalkSpeed(gameRules.SlowPaceWalkSpeed)
+	--else
+	--	SetWalkSpeed(gameRules.NormalWalkSpeed)
+	--end
+
+	RepValues = nil
+end
+
+local HalfStep = false
+function HeadMovement()
+	if gameRules.HeadMovement or WeaponInHand then
+		if not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then return; end;
+		if char.Humanoid.RigType == Enum.HumanoidRigType.R15 then return; end;
+		if not ACS_Client or ACS_Client:GetAttribute("Collapsed") then return; end;
+		local CameraDirection = char.HumanoidRootPart.CFrame:toObjectSpace(cam.CFrame).lookVector
+		if Neck then
+			HalfStep = not HalfStep
+			local neckCFrame = CFNew(0, -.5, 0) * CFAng(0, Asin(CameraDirection.x)/1.15, 0) * CFAng(-Asin(cam.CFrame.LookVector.y)+Asin(char.Torso.CFrame.lookVector.Y), 0, 0) * CFAng(-math.rad(90), 0, math.rad(180))
+			TS:Create(Neck, TweenInfo.new(.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out, 0, false, 0), {C1 = neckCFrame}):Play()
+			if not HalfStep then return; end;
+			Evt.HeadRot:FireServer(neckCFrame)
+		end
+	elseif not gameRules.HeadMovement then
+		local neckCFrame = CFrame.new(0,-0.5,0) * CFrame.Angles(math.rad(90),math.rad(180),0)
+		TS:Create(Neck, TweenInfo.new(.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out, 0, false, 0), {C1 = neckCFrame}):Play()
+		Evt.HeadRot:FireServer(neckCFrame)
+	end
+end
+
+function renderCam()			
+	cam.CFrame = cam.CFrame*CFrame.Angles(cameraspring.p.x,cameraspring.p.y,cameraspring.p.z)
+end
+
+function renderGunRecoil()			
+	recoilcf = recoilcf*CFrame.Angles(RecoilSpring.p.x,RecoilSpring.p.y,RecoilSpring.p.z)
+end
+
+function Recoil()
+	-- Camera Recoil
+	local vr = (math.random(WeaponData.camRecoil.camRecoilUp[1], WeaponData.camRecoil.camRecoilUp[2]) / 2) * ModTable.camRecoilMod.RecoilUp -- Emphasize upwards
+	local lr = (math.random(WeaponData.camRecoil.camRecoilLeft[1], WeaponData.camRecoil.camRecoilLeft[2]) / 8) * ModTable.camRecoilMod.RecoilLeft
+	local rr = (math.random(WeaponData.camRecoil.camRecoilRight[1], WeaponData.camRecoil.camRecoilRight[2]) / 8) * ModTable.camRecoilMod.RecoilRight
+	local hr = (math.random(-rr, lr) / 2)
+	local tr = (math.random(WeaponData.camRecoil.camRecoilTilt[1], WeaponData.camRecoil.camRecoilTilt[2]) / 4) * ModTable.camRecoilMod.RecoilTilt
+
+	local RecoilX = math.rad(vr * RAND( 1, 1, .1))
+	local RecoilY = math.rad(hr * RAND(-1, 1, .1))
+	local RecoilZ = math.rad(tr * RAND(-1, 1, .1))
+
+	-- Gun Recoil
+	local gvr = (math.random(WeaponData.gunRecoil.gunRecoilUp[1], WeaponData.gunRecoil.gunRecoilUp[2]) / 15) * ModTable.gunRecoilMod.RecoilUp
+	local gdr = (math.random(-1, 1) * math.random(WeaponData.gunRecoil.gunRecoilTilt[1], WeaponData.gunRecoil.gunRecoilTilt[2]) / 15) * ModTable.gunRecoilMod.RecoilTilt
+	local glr = (math.random(WeaponData.gunRecoil.gunRecoilLeft[1], WeaponData.gunRecoil.gunRecoilLeft[2]) / 8) * ModTable.gunRecoilMod.RecoilLeft
+	local grr = (math.random(WeaponData.gunRecoil.gunRecoilRight[1], WeaponData.gunRecoil.gunRecoilRight[2]) / 8) * ModTable.gunRecoilMod.RecoilRight
+	local ghr = (math.random(-grr, glr)/10)
+
+
+	local ARR = WeaponData.AimRecoilReduction * ModTable.AimRM
+
+	if BipodActive then
+		cameraspring:accelerate(Vector3.new(RecoilX, RecoilY / 2, 0))
+		if not aimming then
+			RecoilSpring:accelerate(Vector3.new(math.rad(.25 * gvr * RecoilPower), math.rad(.25 * ghr * RecoilPower), math.rad(.25 * gdr)))
+			recoilcf = recoilcf * CFrame.new(0, 0, .1) * CFrame.Angles(math.rad(.25 * gvr * RecoilPower), math.rad(.25 * ghr * RecoilPower), math.rad(.25 * gdr * RecoilPower))
+		else
+			RecoilSpring:accelerate(Vector3.new(math.rad(.25 * gvr * RecoilPower / ARR), math.rad(.25 * ghr * RecoilPower / ARR), math.rad(.25 * gdr / ARR)))
+			recoilcf = recoilcf * CFrame.new(0, 0, .1) * CFrame.Angles(math.rad(.25 * gvr * RecoilPower / ARR), math.rad(.25 * ghr * RecoilPower / ARR), math.rad(.25 * gdr * RecoilPower / ARR))
+		end
+		Thread:Wait(0.05)
+		cameraspring:accelerate(Vector3.new(-RecoilX, -RecoilY/2, 0))
+
+	else
+		cameraspring:accelerate(Vector3.new(RecoilX, RecoilY, RecoilZ))
+
+		if not aimming then
+			RecoilSpring:accelerate(Vector3.new(math.rad(gvr * RecoilPower), math.rad(ghr * RecoilPower), math.rad(gdr)))
+			recoilcf = recoilcf * CFrame.new(0, -0.05, .1) * CFrame.Angles(math.rad(gvr * RecoilPower), math.rad(ghr * RecoilPower), math.rad(gdr * RecoilPower))
+		else
+			RecoilSpring:accelerate(Vector3.new(math.rad(gvr * RecoilPower / ARR), math.rad(ghr * RecoilPower / ARR), math.rad(gdr / ARR)))
+			recoilcf = recoilcf * CFrame.new(0, 0, .1) * CFrame.Angles(math.rad(gvr * RecoilPower / ARR), math.rad(ghr * RecoilPower / ARR), math.rad(gdr * RecoilPower / ARR))
 		end
 	end
 end
@@ -766,2920 +1416,1271 @@ function CheckForHumanoid(L_225_arg1)
 	local L_226_ = false
 	local L_227_ = nil
 	if L_225_arg1 then
-		if
-			(L_225_arg1.Parent:FindFirstChildOfClass("Humanoid") or
-				L_225_arg1.Parent.Parent:FindFirstChildOfClass("Humanoid"))
-		then
+		if (L_225_arg1.Parent:FindFirstChildOfClass("Humanoid") or L_225_arg1.Parent.Parent:FindFirstChildOfClass("Humanoid")) then
 			L_226_ = true
-			if L_225_arg1.Parent:FindFirstChildOfClass("Humanoid") then
-				L_227_ = L_225_arg1.Parent:FindFirstChildOfClass("Humanoid")
-			elseif L_225_arg1.Parent.Parent:FindFirstChildOfClass("Humanoid") then
-				L_227_ = L_225_arg1.Parent.Parent:FindFirstChildOfClass("Humanoid")
+			if L_225_arg1.Parent:FindFirstChildOfClass('Humanoid') then
+				L_227_ = L_225_arg1.Parent:FindFirstChildOfClass('Humanoid')
+			elseif L_225_arg1.Parent.Parent:FindFirstChildOfClass('Humanoid') then
+				L_227_ = L_225_arg1.Parent.Parent:FindFirstChildOfClass('Humanoid')
 			end
 		else
 			L_226_ = false
-		end
+		end	
 	end
 	return L_226_, L_227_
 end
 
-function CreateShell()
-	delay(
-		math.random(4, 8) / 10,
-		function()
-			if PastaFX:FindFirstChild("ShellCasing") then
-				local Som = PastaFX.ShellCasing:clone()
-				Som.Parent = Jogador.PlayerGui
-				Som.PlaybackSpeed = math.random(30, 50) / 40
-				Som.PlayOnRemove = true
-				Debris:AddItem(Som, 0)
-			end
-		end
-	)
-end
+function CastRay(Bullet, Origin)
+	if not Bullet then return; end;
 
-local Tracers = 1
-function TracerCalculation()
-	local VisibleTracer
-	if Settings.RandomTracer then
-		if (math.random(1, 100) <= Settings.TracerChance) then
-			VisibleTracer = true
-		else
-			VisibleTracer = false
-		end
-	else
-		if Tracers >= Settings.TracerEveryXShots then
-			VisibleTracer = true
-			Tracers = 1
-		else
-			Tracers = Tracers + 1
-		end
-	end
-	return VisibleTracer
-end
+	local Bpos = Bullet.Position
+	local Bpos2 = cam.CFrame.Position
 
-function CreateBullet(BSpread)
-
-	local Bullet = Instance.new("Part")
-	Bullet.Name = Player.Name.."_Bullet"
-	Bullet.CanCollide = false
-	Bullet.Transparency = 1
-	Bullet.FormFactor = "Custom"
-	Bullet.Size = Vector3.new(1,1,1)
-	local BulletMass = Bullet:GetMass()
-	local Force = Vector3.new(0,BulletMass * (196.2) - (Settings.BDrop) * (196.2), 0)
-	local BF = Instance.new("BodyForce")
-	BF.force = Force
-	BF.Parent = Bullet
-	local Origin = ArmaClone.SmokePart.Position
-	local Direction = ArmaClone.SmokePart.CFrame.lookVector + (ArmaClone.SmokePart.CFrame.upVector * (((Settings.BDrop*Zeroing.Value/2.8)/Settings.BSpeed))/2)
-	local BulletCF = CFrame.new(Origin, Origin + Direction)
-	local balaspread = CFrame.Angles(
-		RAD(RAND(-BSpread - ((SpeedPrecision/Saude.Stances.Mobility.Value)*Settings.WalkMultiplier), BSpread + ((SpeedPrecision/Saude.Stances.Mobility.Value)*Settings.WalkMultiplier)) / 20),
-		RAD(RAND(-BSpread - ((SpeedPrecision/Saude.Stances.Mobility.Value)*Settings.WalkMultiplier), BSpread + ((SpeedPrecision/Saude.Stances.Mobility.Value)*Settings.WalkMultiplier)) / 20),
-		RAD(RAND(-BSpread - ((SpeedPrecision/Saude.Stances.Mobility.Value)*Settings.WalkMultiplier), BSpread + ((SpeedPrecision/Saude.Stances.Mobility.Value)*Settings.WalkMultiplier)) / 20)
-	)
-	Direction = balaspread * Direction	
-
-
-	Bullet.Parent = BulletModel
-	Bullet.CFrame = BulletCF + Direction
-	Bullet.Velocity = Direction * Settings.BSpeed
-	local RainbowModeCode = Color3.fromRGB(math.random(0,255),math.random(0,255),math.random(0,255))
-
-	local Visivel = TracerCalculation()
-
-	if Settings.BulletFlare == true and Visivel then
-		local bg = Instance.new("BillboardGui", Bullet)
-		bg.Adornee = Bullet
-		bg.Enabled = false
-		local flashsize = math.random(275, 375)/10
-		bg.Size = UDim2.new(flashsize, 0, flashsize, 0)
-		bg.LightInfluence = 0
-		local flash = Instance.new("ImageLabel", bg)
-		flash.BackgroundTransparency = 1
-		flash.Size = UDim2.new(1, 0, 1, 0)
-		flash.Position = UDim2.new(0, 0, 0, 0)
-		flash.Image = "http://www.roblox.com/asset/?id=1047066405"
-
-		if Settings.RainbowMode == true then
-			flash.ImageColor3 = RainbowModeCode
-		else
-			flash.ImageColor3 = Settings.BulletFlareColor
-		end
-		flash.ImageTransparency = math.random(2, 5)/15
-		spawn(function()
-			wait(.2)
-			if Bullet:FindFirstChild("BillboardGui") ~= nil then
-				Bullet.BillboardGui.Enabled = true
-			end
-		end)
-	end
-
-
-
-	if Settings.Tracer == true and Visivel then
-
-		local At1 = Instance.new("Attachment")
-		At1.Name = "At1"
-		At1.Position = Vector3.new(-(Settings.TracerWidth),0,0)
-		At1.Parent = Bullet
-
-		local At2  = Instance.new("Attachment")
-		At2.Name = "At2"
-		At2.Position = Vector3.new((Settings.TracerWidth),0,0)
-		At2.Parent = Bullet
-
-		local Particles = Instance.new("Trail")
-		Particles.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0, 0);
-			NumberSequenceKeypoint.new(1, 1);
-		}
-		)
-		Particles.WidthScale = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 2, 0);
-			NumberSequenceKeypoint.new(1, 1);
-		}
-		)
-
-		if Settings.RainbowMode == true then
-			Particles.Color = ColorSequence.new(RainbowModeCode)
-		else
-			Particles.Color = ColorSequence.new(Settings.TracerColor)
-		end
-		Particles.Texture = "rbxassetid://232918622"
-		Particles.TextureMode = Enum.TextureMode.Stretch
-
-		Particles.FaceCamera = true
-		Particles.LightEmission = Settings.TracerLightEmission
-		Particles.LightInfluence = Settings.TracerLightInfluence 
-		Particles.Lifetime = Settings.TracerLifeTime
-		Particles.Attachment0 = At1
-		Particles.Attachment1 = At2
-		Particles.Parent = Bullet
-	end
-
-	if Settings.BulletLight == true and Visivel then
-		local BulletLight = Instance.new("PointLight")
-		BulletLight.Parent = Bullet
-		BulletLight.Brightness = Settings.BulletLightBrightness
-		if Settings.RainbowMode == true then
-			BulletLight.Color = RainbowModeCode
-		else
-			BulletLight.Color = Settings.BulletLightColor
-		end
-		BulletLight.Range = Settings.BulletLightRange
-		BulletLight.Shadows = true
-
-	end
-
-	CreateShell()
-
-	if Visivel then
-		if ServerConfig.ReplicatedBullets then
-			Evt.ServerBullet:FireServer(BulletCF, Settings.Tracer, Settings.BDrop, Settings.BSpeed, Direction, Settings.TracerColor,Ray_Ignore,Settings.BulletFlare,Settings.BulletFlareColor)
-		end
-	end
-		game.Debris:AddItem(Bullet, 5)
-	return Bullet
-
-end
-
-function CalcularDano(DanoBase, Dist, Vitima, Type)
-	local damage = 0
-	local VestDamage = 0
-	local HelmetDamage = 0
-	local Traveleddamage = DanoBase - (math.ceil(Dist) / 40) * Settings.FallOfDamage
-	if Vitima.Parent:FindFirstChild("Saude") ~= nil then
-		local Vest = Vitima.Parent.Saude.Protecao.VestVida
-		local Vestfactor = Vitima.Parent.Saude.Protecao.VestProtect
-		local Helmet = Vitima.Parent.Saude.Protecao.HelmetVida
-		local Helmetfactor = Vitima.Parent.Saude.Protecao.HelmetProtect
-
-		if Type == "Head" then
-			if Helmet.Value > 0 and (Settings.LimbBulletPenetration) < Helmetfactor.Value then
-				damage = Traveleddamage * ((Settings.LimbBulletPenetration) / Helmetfactor.Value)
-				HelmetDamage = (Traveleddamage * ((100 - Settings.LimbBulletPenetration) / Helmetfactor.Value))
-
-				if HelmetDamage <= 0 then
-					HelmetDamage = 0.5
-				end
-			elseif Helmet.Value > 0 and (Settings.LimbBulletPenetration) >= Helmetfactor.Value then
-				damage = Traveleddamage
-				HelmetDamage = (Traveleddamage * ((100 - Settings.LimbBulletPenetration) / Helmetfactor.Value))
-
-				if HelmetDamage <= 0 then
-					HelmetDamage = 1
-				end
-			elseif Helmet.Value <= 0 then
-				damage = Traveleddamage
-			end
-		else
-			if Vest.Value > 0 and (Settings.LimbBulletPenetration) < Vestfactor.Value then
-				damage = Traveleddamage * ((Settings.LimbBulletPenetration) / Vestfactor.Value)
-				VestDamage = (Traveleddamage * ((100 - Settings.LimbBulletPenetration) / Vestfactor.Value))
-
-				if VestDamage <= 0 then
-					VestDamage = 0.5
-				end
-			elseif Vest.Value > 0 and (Settings.LimbBulletPenetration) >= Vestfactor.Value then
-				damage = Traveleddamage
-				VestDamage = (Traveleddamage * ((100 - Settings.LimbBulletPenetration) / Vestfactor.Value))
-
-				if VestDamage <= 0 then
-					VestDamage = 1
-				end
-			elseif Vest.Value <= 0 then
-				damage = Traveleddamage
-			end
-		end
-	else
-		damage = Traveleddamage
-	end
-	if damage <= 0 then
-		damage = 1
-	end
-	Evt.Suppression.OnClientEvent:Connect(
-		function(Mode, Intensity, Tempo)
-			if ServerConfig.EnableStatusUI and Jogador.Character and Human.Health > 0 then
-				if Mode == 1 then
-					TS:Create(
-						StatusClone.Efeitos.Suppress,
-						TweenInfo.new(0.1),
-						{ImageTransparency = math.clamp(1 - Intensity, 0.1, 1), Size = UDim2.fromScale(1, 1.15)}
-					):Play()
-
-					local camShake =
-						cameraShaker.new(
-							Enum.RenderPriority.Camera.Value,
-							function(shakeCFrame) -- make a new camera shaker with the module
-								CurCamera.CFrame = CurCamera.CFrame * shakeCFrame
-							end
-						)
-
-					camShake:Start()
-					camShake:Shake(cameraShaker.Presets.Suppression)
-
-					delay(
-						0.1,
-						function()
-							TS:Create(
-								StatusClone.Efeitos.Suppress,
-								TweenInfo.new(
-									Tempo,
-									Enum.EasingStyle.Exponential,
-									Enum.EasingDirection.InOut,
-									0,
-									false,
-									0.15
-								),
-								{ImageTransparency = 1, Size = UDim2.fromScale(2, 2)}
-							):Play()
-						end
-					)
-				end
-			end
-		end
-	)
-
-	return damage, VestDamage, HelmetDamage
-end
-
-local WhizzSound = {"342190005", "342190012", "342190017", "342190024"}
-
-Evt.Whizz.OnClientEvent:connect(
-	function()
-		local Som = Instance.new("Sound")
-		Som.Parent = Jogador.PlayerGui
-		Som.SoundId = "rbxassetid://" .. WhizzSound[math.random(1, 4)]
-		Som.Volume = 2
-		Som.PlayOnRemove = true
-		Som:Destroy()
-	end
-)
-
-Evt.Suppression.OnClientEvent:Connect(
-	function(Mode, Intensity, Tempo)
-		if ServerConfig.EnableStatusUI and Jogador.Character and Human.Health > 0 then
-			if Mode == 1 then
-				local camShake =
-					cameraShaker.new(
-						Enum.RenderPriority.Camera.Value,
-						function(shakeCFrame) -- make a new camera shaker with the module
-							CurCamera.CFrame = CurCamera.CFrame * shakeCFrame
-						end
-					)
-
-				camShake:Start()
-				camShake:Shake(cameraShaker.Presets.Suppression)
-
-				TS:Create(
-					StatusClone.Efeitos.Suppress,
-					TweenInfo.new(.1),
-					{ImageTransparency = 0, Size = UDim2.fromScale(1, 1.15)}
-				):Play()
-				delay(
-					.1,
-					function()
-						TS:Create(
-							StatusClone.Efeitos.Suppress,
-							TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0.15),
-							{ImageTransparency = 1, Size = UDim2.fromScale(2, 2)}
-						):Play()
-					end
-				)
-			else
-				--local SKP_22 = script.FX.Dirty:clone()
-				--SKP_22.Parent = Jogador.PlayerGui.StatusUI.Supressao
-				--SKP_22.ImageTransparency = 0
-				--SKP_22.BackgroundTransparency = (Intensity - 1) * -1
-
-				--TS:Create(SKP_22,TweenInfo.new(0.25 ,Enum.EasingStyle.Linear,Enum.EasingDirection.In,0,false,0),{ImageTransparency = 0}):Play()
-				--TS:Create(SKP_22,TweenInfo.new(Tempo/2 ,Enum.EasingStyle.Elastic,Enum.EasingDirection.In,0,false,0),{BackgroundTransparency = 1}):Play()
-
-				--delay(Tempo/2,function()
-				--TS:Create(SKP_22,TweenInfo.new(Tempo ,Enum.EasingStyle.Sine,Enum.EasingDirection.In,0,false,0),{ImageTransparency = 1}):Play()
-				--TS:AddItem(SKP_22, Tempo)
-				--end)
-				local camShake =
-					cameraShaker.new(
-						Enum.RenderPriority.Camera.Value,
-						function(shakeCFrame) -- make a new camera shaker with the module
-							CurCamera.CFrame = CurCamera.CFrame * shakeCFrame
-						end
-					)
-
-				camShake:Stop()
-				print("stop shake :3")
-			end
-		end
-	end
-)
-
-function CastRay(Bala)
-
-	local Hit2, Pos2, Norm2, Mat2
-	local Hit, Pos, Norm, Mat
-	print("Initial setup complete")
-	
-	local L_257_ = ArmaClone.SmokePart.Position;
-	local L_258_ = Bala.Position;
-	print("Starting positions:", L_257_, L_258_)
-	
+	local recast = false
 	local TotalDistTraveled = 0
-	local L_260_ = false	
-	local recast
+	local Debounce = false
+	local raycastResult
 
-	while true do
-		RS.Heartbeat:wait()
-		L_258_ = Bala.Position;
-		TotalDistTraveled = TotalDistTraveled + (L_258_ - L_257_).magnitude
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterDescendantsInstances = Ignore_Model
+	raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+	raycastParams.IgnoreWater = true
 
-		Hit2, Pos2, Norm2, Mat2 = workspace:FindPartOnRayWithIgnoreList(Ray.new(L_257_, (L_258_ - L_257_)*20), Ray_Ignore, false, true);
+	while Bullet do
+		Run.Heartbeat:Wait()
+		if not Bullet.Parent then break; end;
 
+		Bpos = Bullet.Position
+		TotalDistTraveled = (Bullet.Position - Origin).Magnitude
 
-		Hit, Pos, Norm, Mat = workspace:FindPartOnRayWithIgnoreList(Ray.new(L_257_, (L_258_ - L_257_)), Ray_Ignore, false, true);
-
-		for L_264_forvar1, L_265_forvar2 in pairs(game.Players:GetChildren()) do
-			if L_265_forvar2:IsA('Player') and L_265_forvar2 ~= Player and L_265_forvar2.Character and L_265_forvar2.Character:FindFirstChild('Head') and (L_265_forvar2.Character.Head.Position - Pos).magnitude <= Settings.SuppressMaxDistance and Settings.BulletWhiz and not L_260_ then
-				Evt.Whizz:FireServer(L_265_forvar2)
-				Evt.Suppression:FireServer(L_265_forvar2)
-				L_260_ = true
-			end
-		end
-
-		if TotalDistTraveled > Settings.Distance then
-			Bala:Destroy()
-			L_260_ = true
+		if TotalDistTraveled > 7000 then
+			Bullet:Destroy()
+			Debounce = true
 			break
 		end
 
-		if Hit2 then
-			while not recast do
-				if Hit2 and (Hit2 and Hit2.Transparency >= 1 or Hit2.CanCollide == false or Hit2.Name == "Ignorable" or Hit2.Name == "Glass" or Hit2.Parent.Name == "Top" or Hit2.Parent.Name == "Helmet" or Hit2.Parent.Name == "Up" or Hit2.Parent.Name == "Down" or Hit2.Parent.Name == "Face" or Hit2.Parent.Name == "Olho" or Hit2.Parent.Name == "Headset" or Hit2.Parent.Name == "Numero" or Hit2.Parent.Name == "Vest" or Hit2.Parent.Name == "Chest" or Hit2.Parent.Name == "Waist" or Hit2.Parent.Name == "Back" or Hit2.Parent.Name == "Belt" or Hit2.Parent.Name == "Leg1" or Hit2.Parent.Name == "Leg2" or Hit2.Parent.Name == "Arm1"  or Hit2.Parent.Name == "Arm2") and Hit2.Name ~= 'Right Arm' and Hit2.Name ~= 'Left Arm' and Hit2.Name ~= 'Right Leg' and Hit2.Name ~= 'Left Leg' and Hit2.Name ~= 'Armor' and Hit2.Name ~= 'EShield' then
-					table.insert(Ray_Ignore, Hit2)
-					recast = true
-				end
-
-				if recast then
-					Hit2, Pos2, Norm2, Mat2 = workspace:FindPartOnRayWithIgnoreList(Ray.new(L_257_, (L_258_ - L_257_)*20), Ray_Ignore, false, true);
-					Hit, Pos, Norm, Mat = workspace:FindPartOnRayWithIgnoreList(Ray.new(L_257_, (L_258_ - L_257_)), Ray_Ignore, false, true);
-					recast = false
-				else
-					break
-				end
-			end
+		for _, plyr in pairs(game.Players:GetPlayers()) do
+			if Debounce or plyr == plr or not plyr.Character or not plyr.Character:FindFirstChild('Head') or (plyr.Character.Head.Position - Bpos).magnitude > 25 then continue; end;
+			Evt.Whizz:FireServer(plyr)
+			Evt.Suppression:FireServer(plyr,1,nil,nil)
+			Debounce = true
 		end
 
-		if Hit and not recast then
-			Bala:Destroy()
-			L_260_ = true
-			local FoundHuman,VitimaHuman = CheckForHumanoid(Hit)
-			Hitmarker.HitEffect(Ray_Ignore,ACS_Storage, Pos, Hit, Norm, Mat, Settings)
-			Evt.Hit:FireServer(Pos, Hit, Norm, Mat,Settings,TotalDistTraveled)
-			if FoundHuman == true and VitimaHuman.Health > 0 then
-				if ServerConfig.HitmarkerSound then
-					local hurtSound = PastaFX.Hitmarker:Clone()
-					hurtSound.Parent = Player.PlayerGui
-					hurtSound.Volume = 2
-					hurtSound.PlayOnRemove = true
-					Debris:AddItem(hurtSound,0)	
-				end			
+		-- Set an origin and directional vector
+		raycastResult = workspace:Raycast(Bpos2, (Bpos - Bpos2) * 1, raycastParams)
 
-				if not  Settings.ModoTreino then
-					Evt.CreateOwner:FireServer(VitimaHuman)
+		recast = false
 
-					if game.Players:FindFirstChild(VitimaHuman.Parent.Name) == nil then
-						if Hit.Name == "Head" then
-							local DanoBase = math.random(Settings.HeadDamage[1], Settings.HeadDamage[2])
-							local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Head")	
-							Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-						elseif Hit.Name == "Torso" or Hit.Parent.Name == "UpperTorso" or Hit.Parent.Name == "LowerTorso" then
-							local DanoBase = math.random(Settings.TorsoDamage[1], Settings.TorsoDamage[2])
-							local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Body")	
-							Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-						else
-							local DanoBase = math.random(Settings.LimbsDamage[1], Settings.LimbsDamage[2])
-							local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Body")	
-							Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-						end	
+		if raycastResult then
+			local Hit2 = raycastResult.Instance
 
-					else
-
-						if not ServerConfig.TeamKill then
-							if game.Players:FindFirstChild(VitimaHuman.Parent.Name) and game.Players:FindFirstChild(VitimaHuman.Parent.Name).Team ~= Player.Team or game.Players:FindFirstChild(VitimaHuman.Parent.Name) == nil then
-								if Hit.Name == "Head" or Hit.Parent.Name == "Top" or Hit.Parent.Name == "Headset" or Hit.Parent.Name == "Olho" or Hit.Parent.Name == "Face" or Hit.Parent.Name == "Numero" then
-									local DanoBase = math.random(Settings.HeadDamage[1], Settings.HeadDamage[2])
-									local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Head")	
-									Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-								elseif (Hit.Parent:IsA('Accessory') or Hit.Parent:IsA('Hat')) then
-									local DanoBase = math.random(Settings.HeadDamage[1], Settings.HeadDamage[2])
-									local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Head")	
-									Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-								elseif Hit.Name == "Torso" or Hit.Parent.Name == "Chest" or Hit.Parent.Name == "Waist" then
-									local DanoBase = math.random(Settings.TorsoDamage[1], Settings.TorsoDamage[2])
-									local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Body")	
-									Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-								elseif Hit.Name == "Right Arm" or Hit.Name == "Right Leg" or Hit.Name == "Left Leg" or Hit.Name == "Left Arm" then
-									local DanoBase = math.random(Settings.LimbsDamage[1], Settings.LimbsDamage[2])
-									local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Body")	
-									Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-								end	
-							end
-						else
-							if game.Players:FindFirstChild(VitimaHuman.Parent.Name) and game.Players:FindFirstChild(VitimaHuman.Parent.Name).Team ~= Player.Team or game.Players:FindFirstChild(VitimaHuman.Parent.Name) == nil  then				
-								if Hit.Name == "Head" or Hit.Parent.Name == "Top" or Hit.Parent.Name == "Headset" or Hit.Parent.Name == "Olho" or Hit.Parent.Name == "Face" or Hit.Parent.Name == "Numero" then
-									local DanoBase = math.random(Settings.HeadDamage[1], Settings.HeadDamage[2])
-									local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Head")	
-									Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-								elseif (Hit.Parent:IsA('Accessory') or Hit.Parent:IsA('Hat')) then
-									local DanoBase = math.random(Settings.HeadDamage[1], Settings.HeadDamage[2])
-									local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Head")	
-									Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-								elseif Hit.Name == "Torso" or Hit.Parent.Name == "Chest" or Hit.Parent.Name == "Waist" then
-									local DanoBase = math.random(Settings.TorsoDamage[1], Settings.TorsoDamage[2])
-									local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Body")	
-									Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-								elseif Hit.Name == "Right Arm" or Hit.Name == "Right Leg" or Hit.Name == "Left Leg" or Hit.Name == "Left Arm" then 
-									local DanoBase = math.random(Settings.LimbsDamage[1], Settings.LimbsDamage[2])
-									local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Body")	
-									Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-								end	
-							else 
-								if Hit.Name == "Head" or Hit.Parent.Name == "Top" or Hit.Parent.Name == "Headset" or Hit.Parent.Name == "Olho" or Hit.Parent.Name == "Face" or Hit.Parent.Name == "Numero" then
-									local DanoBase = math.random(Settings.HeadDamage[1], Settings.HeadDamage[2])* ServerConfig.TeamDamageMultiplier
-									local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Head")	
-									Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-								elseif (Hit.Parent:IsA('Accessory') or Hit.Parent:IsA('Hat')) then
-									local DanoBase = math.random(Settings.HeadDamage[1], Settings.HeadDamage[2])* ServerConfig.TeamDamageMultiplier
-									local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Head")	
-									Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-								elseif Hit.Name == "Torso" or Hit.Parent.Name == "Chest" or Hit.Parent.Name == "Waist" then
-									local DanoBase = math.random(Settings.TorsoDamage[1], Settings.TorsoDamage[2])* ServerConfig.TeamDamageMultiplier
-									local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Body")	
-									Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-								elseif Hit.Name == "Right Arm" or Hit.Name == "Right Leg" or Hit.Name == "Left Leg" or Hit.Name == "Left Arm" then
-									local DanoBase = math.random(Settings.LimbsDamage[1], Settings.LimbsDamage[2])* ServerConfig.TeamDamageMultiplier
-									local Dano,DanoColete,DanoCapacete = CalcularDano(DanoBase, TotalDistTraveled, VitimaHuman, "Body")	
-									Evt.Damage:FireServer(VitimaHuman,Dano,DanoColete,DanoCapacete)
-								end	
+			if Hit2 and Hit2.Parent:IsA('Accessory') or Hit2.Parent:IsA('Hat') then
+				for _,players in pairs(game.Players:GetPlayers()) do
+					if players.Character then
+						for i, hats in pairs(players.Character:GetChildren()) do
+							if hats:IsA("Accessory") then
+								table.insert(Ignore_Model, hats)
 							end
 						end
 					end
-				else
-					if Hit.Name == "Head" or Hit.Parent.Name == "Top" or Hit.Parent.Name == "Headset" or Hit.Parent.Name == "Olho" or Hit.Parent.Name == "Face" or Hit.Parent.Name == "Numero"  or (Hit.Parent:IsA('Accessory') or Hit.Parent:IsA('Hat')) or Hit.Name == "Torso" or Hit.Parent.Name == "Chest" or Hit.Parent.Name == "Waist" or Hit.Name == "Right Arm" or Hit.Name == "Left Arm" or Hit.Name == "Right Leg" or Hit.Name == "Left Leg" or Hit.Parent.Name == "Back" or Hit.Parent.Name == "Leg1" or Hit.Parent.Name == "Leg2" or Hit.Parent.Name == "Arm1" or Hit.Parent.Name == "Arm2" then
-						Evt.Treino:FireServer(VitimaHuman)
-					end
 				end
+				recast = true
+				CastRay(Bullet, Origin)
 				break
 			end
-		end		
-		L_257_ = L_258_;
+
+			if Hit2 and Hit2.Name == "Ignorable" or Hit2.Name == "Ignore" or Hit2.Parent.Name == "Top" or Hit2.Parent.Name == "Helmet" or Hit2.Parent.Name == "Up" or Hit2.Parent.Name == "Down" or Hit2.Parent.Name == "Face" or Hit2.Parent.Name == "Olho" or Hit2.Parent.Name == "Headset" or Hit2.Parent.Name == "Numero" or Hit2.Parent.Name == "Vest" or Hit2.Parent.Name == "Chest" or Hit2.Parent.Name == "Waist" or Hit2.Parent.Name == "Back" or Hit2.Parent.Name == "Belt" or Hit2.Parent.Name == "Leg1" or Hit2.Parent.Name == "Leg2" or Hit2.Parent.Name == "Arm1"  or Hit2.Parent.Name == "Arm2" then
+				table.insert(Ignore_Model, Hit2)
+				recast = true
+				CastRay(Bullet, Origin)
+				break
+			end
+
+			if Hit2 and Hit2.Parent.Name == "Top" or Hit2.Parent.Name == "Helmet" or Hit2.Parent.Name == "Up" or Hit2.Parent.Name == "Down" or Hit2.Parent.Name == "Face" or Hit2.Parent.Name == "Olho" or Hit2.Parent.Name == "Headset" or Hit2.Parent.Name == "Numero" or Hit2.Parent.Name == "Vest" or Hit2.Parent.Name == "Chest" or Hit2.Parent.Name == "Waist" or Hit2.Parent.Name == "Back" or Hit2.Parent.Name == "Belt" or Hit2.Parent.Name == "Leg1" or Hit2.Parent.Name == "Leg2" or Hit2.Parent.Name == "Arm1"  or Hit2.Parent.Name == "Arm2" then
+				table.insert(Ignore_Model, Hit2.Parent)
+				recast = true
+				CastRay(Bullet, Origin)
+				break
+			end
+
+			if Hit2 and (Hit2.Transparency >= 1 or Hit2.CanCollide == false) and Hit2.Name ~= 'Head' and Hit2.Name ~= 'Right Arm' and Hit2.Name ~= 'Left Arm' and Hit2.Name ~= 'Right Leg' and Hit2.Name ~= 'Left Leg' and Hit2.Name ~= "UpperTorso" and Hit2.Name ~= "LowerTorso" and Hit2.Name ~= "RightUpperArm" and Hit2.Name ~= "RightLowerArm" and Hit2.Name ~= "RightHand" and Hit2.Name ~= "LeftUpperArm" and Hit2.Name ~= "LeftLowerArm" and Hit2.Name ~= "LeftHand" and Hit2.Name ~= "RightUpperLeg" and Hit2.Name ~= "RightLowerLeg" and Hit2.Name ~= "RightFoot" and Hit2.Name ~= "LeftUpperLeg" and Hit2.Name ~= "LeftLowerLeg" and Hit2.Name ~= "LeftFoot" and Hit2.Name ~= 'Armor' and Hit2.Name ~= 'EShield' then
+				table.insert(Ignore_Model, Hit2)
+				recast = true
+				CastRay(Bullet, Origin)
+				break
+			end
+
+			if not recast then
+
+				Bullet:Destroy()
+				Debounce = true
+
+				local FoundHuman,VitimaHuman = CheckForHumanoid(raycastResult.Instance)
+				HitMod.HitEffect(Ignore_Model, raycastResult.Position, raycastResult.Instance , raycastResult.Normal, raycastResult.Material, WeaponData)
+				Evt.HitEffect:FireServer(raycastResult.Position, raycastResult.Instance , raycastResult.Normal, raycastResult.Material, WeaponData)
+
+				local HitPart = raycastResult.Instance
+				TotalDistTraveled = (raycastResult.Position - Origin).Magnitude
+
+				if FoundHuman == true and VitimaHuman.Health > 0 and WeaponData then
+					local SKP_02 = SKP_01.."-"..plr.UserId
+
+					if HitPart.Name == "Head" or HitPart.Parent.Name == "Top" or HitPart.Parent.Name == "Headset" or HitPart.Parent.Name == "Olho" or HitPart.Parent.Name == "Face" or HitPart.Parent.Name == "Numero" then
+						Evt.Damage:InvokeServer(WeaponTool, VitimaHuman, TotalDistTraveled, 1, WeaponData, ModTable, nil, nil, SKP_02)
+					elseif HitPart.Name == "Torso" or HitPart.Name == "UpperTorso" or HitPart.Name == "LowerTorso" or HitPart.Parent.Name == "Chest" or HitPart.Parent.Name == "Waist" or HitPart.Name == "Right Arm" or HitPart.Name == "Left Arm" or HitPart.Name == "RightUpperArm" or HitPart.Name == "RightLowerArm" or HitPart.Name == "RightHand" or HitPart.Name == "LeftUpperArm" or HitPart.Name == "LeftLowerArm" or HitPart.Name == "LeftHand" then				
+						Evt.Damage:InvokeServer(WeaponTool, VitimaHuman, TotalDistTraveled, 2, WeaponData, ModTable, nil, nil, SKP_02)
+					elseif HitPart.Name == "Right Leg" or HitPart.Name == "Left Leg" or HitPart.Name == "RightUpperLeg" or HitPart.Name == "RightLowerLeg" or HitPart.Name == "RightFoot" or HitPart.Name == "LeftUpperLeg" or HitPart.Name == "LeftLowerLeg" or HitPart.Name == "LeftFoot" then
+						Evt.Damage:InvokeServer(WeaponTool, VitimaHuman, TotalDistTraveled, 3, WeaponData, ModTable, nil, nil, SKP_02)		
+					end	
+				end
+			end
+			break
+		end
+
+		Bpos2 = Bpos
 	end
 end
 
-Human.Running:connect(
-	function(walkin)
-		if Equipped then
-			SpeedPrecision = walkin
-			Sprint()
-			if walkin > 1 then
-				Walking = true
-			else
-				Walking = false
+local Tracers = 0
+function TracerCalculation()
+	if not WeaponData.Tracer and not WeaponData.BulletFlare then return false; end;
+
+	if WeaponData.RandomTracer.Enabled then
+		if math.random(1, 100) <= WeaponData.RandomTracer.Chance then return true; end;
+		return false;
+	end;
+
+	if Tracers >= WeaponData.TracerEveryXShots then
+		Tracers = 0;
+		return true;
+	end;
+	Tracers = Tracers + 1;
+	return false;
+end;
+
+function CreateBullet()
+
+	if WeaponData.IsLauncher then
+		for _, cPart in pairs(WeaponInHand:GetChildren()) do
+			if cPart.Name == "Warhead" then
+				cPart.Transparency = 1
 			end
 		end
 	end
-)
 
-Mouse.KeyDown:connect(
-	function(Key)
-		if Equipped then
-			if Key == "w" then
-				if not w then
-					w = true
-				end
-			end
-			if Key == "a" then
-				if not a then
-					a = true
-				end
-			end
-			if Key == "s" then
-				if not s then
-					s = true
-				end
-			end
-			if Key == "d" then
-				if not d then
-					d = true
-				end
-			end
-		end
-	end
-)
+	local Bullet = Instance.new("Part",ACS_Workspace.Client)
+	Bullet.Name = plr.Name.."_Bullet"
+	Bullet.CanCollide = false
+	Bullet.Shape = Enum.PartType.Ball
+	Bullet.Transparency = 1
+	Bullet.Size = Vector3.new(1,1,1)
 
-Mouse.KeyUp:connect(
-	function(Key)
-		if Equipped then
-			if Key == "w" then
-				if w then
-					w = false
-				end
-			end
-			if Key == "a" then
-				if a then
-					a = false
-				end
-			end
-			if Key == "s" then
-				if s then
-					s = false
-				end
-			end
-			if Key == "d" then
-				if d then
-					d = false
-				end
-			end
-		end
-	end
-)
+	local Origin 		= WeaponInHand.Handle.Muzzle.WorldPosition
+	local Direction 	= WeaponInHand.Handle.Muzzle.WorldCFrame.LookVector + (WeaponInHand.Handle.Muzzle.WorldCFrame.UpVector * (((WeaponData.BulletDrop * WeaponData.CurrentZero/4)/WeaponData.MuzzleVelocity))/2)
+	local BulletCF 		= CFrame.new(Origin, Direction) 
+	local WalkMul 		= WeaponData.WalkMult * ModTable.WalkMult
+	local BColor 		= Color3.fromRGB(255,255,255)
+	local balaspread
 
-function SlideEx()
-	tweenJoint(
-		ArmaClone.Handle:WaitForChild("Slide"),
-		CFrame.new(Settings.SlideExtend) * CFrame.Angles(0, math.rad(0), 0),
-		nil,
-		function(X)
-			return math.sin(math.rad(X))
-		end,
-		1 * (FireRate / 2)
-	)
-	if Settings.MoveBolt == true then
-		tweenJoint(
-			ArmaClone.Handle:WaitForChild("Bolt"),
-			CFrame.new(Settings.BoltExtend) * CFrame.Angles(0, math.rad(0), 0),
-			nil,
-			function(X)
-				return math.sin(math.rad(X))
-			end,
-			1 * (FireRate / 2)
+	if aimming and WeaponData.Bullets <= 1 then
+		balaspread = CFrame.Angles(
+			math.rad(RAND(-BSpread - (charspeed/1) * WalkMul, BSpread + (charspeed/1) * WalkMul) / (10 * WeaponData.AimSpreadReduction)),
+			math.rad(RAND(-BSpread - (charspeed/1) * WalkMul, BSpread + (charspeed/1) * WalkMul) / (10 * WeaponData.AimSpreadReduction)),
+			math.rad(RAND(-BSpread - (charspeed/1) * WalkMul, BSpread + (charspeed/1) * WalkMul) / (10 * WeaponData.AimSpreadReduction))
+		)
+	else
+		balaspread = CFrame.Angles(
+			math.rad(RAND(-BSpread - (charspeed/1) * WalkMul, BSpread + (charspeed/1) * WalkMul) / 10),
+			math.rad(RAND(-BSpread - (charspeed/1) * WalkMul, BSpread + (charspeed/1) * WalkMul) / 10),
+			math.rad(RAND(-BSpread - (charspeed/1) * WalkMul, BSpread + (charspeed/1) * WalkMul) / 10)
 		)
 	end
-	delay(
-		FireRate / 2,
-		function()
-			if Ammo.Value >= 1 then
-				tweenJoint(
-					ArmaClone.Handle:WaitForChild("Slide"),
-					CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(0), 0),
-					nil,
-					function(X)
-						return math.sin(math.rad(X))
-					end,
-					1 * (FireRate / 2)
-				)
-				if Settings.MoveBolt == true then
-					tweenJoint(
-						ArmaClone.Handle:WaitForChild("Bolt"),
-						CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(0), 0),
-						nil,
-						function(X)
-							return math.sin(math.rad(X))
-						end,
-						1 * (FireRate / 2)
-					)
-				end
-			elseif Ammo.Value < 1 and Settings.SlideLock == true then
-				Chambered.Value = false
-				if Settings.MoveBolt == true and Settings.BoltLock == false then
-					tweenJoint(
-						ArmaClone.Handle:WaitForChild("Bolt"),
-						CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(0), 0),
-						nil,
-						function(X)
-							return math.sin(math.rad(X))
-						end,
-						1 * (FireRate / 2)
-					)
-				end
-				ArmaClone.Handle.Click:Play()
-				slideback = true
-			elseif Ammo.Value < 1 and Settings.SlideLock == false then
-				tweenJoint(
-					ArmaClone.Handle:WaitForChild("Slide"),
-					CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(0), 0),
-					nil,
-					function(X)
-						return math.sin(math.rad(X))
-					end,
-					1 * (FireRate / 2)
-				)
-				if Settings.MoveBolt == true then
-					tweenJoint(
-						ArmaClone.Handle:WaitForChild("Bolt"),
-						CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(0), 0),
-						nil,
-						function(X)
-							return math.sin(math.rad(X))
-						end,
-						1 * (FireRate / 2)
-					)
-				end
-				Chambered.Value = false
-				ArmaClone.Handle.Click:Play()
-			end
-		end
-	)
-end
 
-function recoil()
-	spawn(function()
-		local dampingFactor = 0.55 -- Increased for more kick
+	Direction = balaspread * Direction
 
-		local function applyRecoil(vr, hr, vP, hP, dP, rP, recoilPunch, aimReduction, recoverTime)
-			Camera.CFrame = Camera.CFrame * CFrame.Angles(vr, hr, rP)
-			local c = -vr / 30
-			local cx = -hr / 30
-			local cz = -rP / 30
-			local curId = math.random()
-			local EquipId = curId
-			local lerpAmount =
-				CFrame.new(0, 0, recoilPunch) *
-				CFrame.Angles(
-					math.rad(vP * RecoilPower / aimReduction),
-					math.rad(hP * RecoilPower / aimReduction),
-					math.rad(dP * RecoilPower / aimReduction)
-				)
+	local Visivel = TracerCalculation()
 
-			Recoil = Recoil:lerp(Recoil * lerpAmount, 1)
-
-			local function easeInOutQuad(t, b, c, d)
-				t = t / (d / 2)
-				if t < 1 then
-					return c / 2 * t * t + b
-				end
-				t = t - 1
-				return -c / 2 * (t * (t - 2) - 1) + b
-			end
-
-			for i = 1, recoverTime do
-				if EquipId == curId then
-					local t = i / recoverTime
-					local easedC = easeInOutQuad(t, c, -c, 1)
-					local easedCx = easeInOutQuad(t, cx, -cx, 1)
-					local easedCz = easeInOutQuad(t, cz, -cz, 1)
-					Camera.CoordinateFrame =
-						CFrame.new(Camera.Focus.p) * (Camera.CoordinateFrame - Camera.CoordinateFrame.p) *
-						CFrame.Angles(easedC, easedCx, easedCz) *
-						CFrame.new(0, 0, (Camera.Focus.p - Camera.CoordinateFrame.p).magnitude)
-					wait()
-				else
-					break
-				end
-			end
-		end
-
-		local function calculateRecoilParameters()
-			local vr = VRecoil * dampingFactor
-			local hr = HRecoil * math.random(-1, 1) * dampingFactor
-			local rP = math.random(-DPunchBase * 50, DPunchBase * 50) / 100 * dampingFactor
-			local vP, hP, dP
-
-			if Bipod then
-				if Settings.GunType == 0 then
-					vP = VPunchBase * dampingFactor
-				else
-					vP = VPunchBase * 10 / 100 * dampingFactor
-				end
-				hP = math.random(-HPunchBase * 25, HPunchBase * 25) / 100 * dampingFactor
-				dP = DPunchBase * math.random(-1, 1)
-				local recoilPunch = Settings.RecoilPunch / 2
-				local aimReduction = 4
-				return vr, hr, vP, hP, dP, rP, recoilPunch, aimReduction, 60
-			else
-				if Settings.GunType == 0 then
-					vP = VPunchBase
-				else
-					vP = math.random(-VPunchBase * 50, VPunchBase * 100) / 100
-				end
-				hP = math.random(-HPunchBase * 100, HPunchBase * 100) / 100
-				dP = DPunchBase * math.random(-1, 1)
-				local recoilPunch = Settings.RecoilPunch
-				local aimReduction = Aiming and Settings.AimRecoilReduction or 1
-				local recoverTime = 60 * (Settings.AimRecover or 1)
-				return vr, hr, vP, hP, dP, rP, recoilPunch, aimReduction, recoverTime
-			end
-		end
-
-		local vr, hr, vP, hP, dP, rP, recoilPunch, aimReduction, recoverTime = calculateRecoilParameters()
-		applyRecoil(vr, hr, vP, hP, dP, rP, recoilPunch, aimReduction, recoverTime)
-	end)
-
-	for _, v in pairs(ArmaClone.SmokePart:GetChildren()) do
-		if v.Name:sub(1, 7) == "FlashFX" or v.Name:sub(1, 5) == "Smoke" then
-			v.Enabled = true
-		end
-	end
-
-	for _, a in pairs(ArmaClone.Chamber:GetChildren()) do
-		if a.Name:sub(1, 7) == "FlashFX" or a.Name:sub(1, 5) == "Smoke" then
-			a.Enabled = true
-		end
-	end
-
-	delay(1 / 30, function()
-		for _, v in pairs(ArmaClone.SmokePart:GetChildren()) do
-			if v.Name:sub(1, 7) == "FlashFX" or v.Name:sub(1, 5) == "Smoke" then
-				v.Enabled = false
-			end
-		end
-
-		for _, a in pairs(ArmaClone.Chamber:GetChildren()) do
-			if a.Name:sub(1, 7) == "FlashFX" or a.Name:sub(1, 5) == "Smoke" then
-				a.Enabled = false
-			end
-		end
-	end)
-
-	SlideEx()
-end
-
-
-local function Emperrar()
-	if Settings.CanBreak == true and Chambered.Value == true and (Ammo.Value - 1) > 0 then
-		local Jam = math.random(Settings.JamChance)
-		if Jam <= 2 then
-			-- Ensure _G.GunJamEvent is set before accessing it
-			while not _G.GunJamEventReady do
-				print("Waiting for GunJamEvent to be available...")
-				task.wait(0.1)
-			end
-
-			if _G.GunJamEvent then
-				_G.GunJamEvent:Fire()
-				print("GunJamEvent fired.")
-			else
-				warn("GunJamEvent is not available.")
-			end
-
-			Emperrado.Value = true
-			ArmaClone.Handle:WaitForChild("Click"):Play()
-		end
-	end
-end
-
-
-function HalfStepFunc(Rot)
-	if PlaceHolder then
-		Offset = Human.CameraOffset
-		--	Evt.HeadRot:FireServer(Rot, Offset, Equipped)
-	end
-	PlaceHolder = not PlaceHolder
-end
-
-oldtick = tick()
-xTilt = 0
-yTilt = 0
-lastPitch = 0
-lastYaw = 0
-local TVal = 0
-
-local L_199_ = nil
-Personagem.ChildAdded:connect(
-	function(Tool)
-		if
-			Tool:IsA("Tool") and Tool:FindFirstChild("ACS_Modulo") and Tool.ACS_Modulo:FindFirstChild("ACS_Setup") and
-			Humanoid.Health > 0 and
-			not ToolEquip and
-			require(Tool.ACS_Modulo.ACS_Setup).Type == "Gun"
-		then
-			local L_370_ = true
-			if
-				Personagem:WaitForChild("Humanoid").Sit and Personagem.Humanoid.SeatPart:IsA("VehicleSeat") or
-				Nadando
-			then
-				L_370_ = false
-			end
-
-			if L_370_ then
-				L_199_ = Tool
-				if not Equipped then
-					uis.MouseIconEnabled = false
-					Player.CameraMode = Enum.CameraMode.LockFirstPerson
-					Setup(Tool)
-					LoadClientMods()
-
-					Ray_Ignore = {Character, Ignore_Model, Camera, BulletModel}
-
-					Gui = StatusClone:WaitForChild("GunHUD")
-					Gui.Visible = true
-					CanUpdateGui = true
-					Update_Gui()
-					EquipAnim()
-					if Settings.ZoomAnim and AimPartMode == 2 then
-						ZoomAnim()
-					end
-					Sprint()
-				elseif Equipped then
-					Unset()
-					Setup(L_199_)
-					LoadClientMods()
-				end
-			end
-		end
-	end
-)
-
-Human.Seated:Connect(
-	function(isSeated, seat)
-		if isSeated and (seat:IsA("VehicleSeat")) then
-			Unset()
-			Humanoid:UnequipTools()
-			UnBlurTween:Play()
-			Jogador.CameraMaxZoomDistance = ServerConfig.VehicleMaxZoom
-		else
-			Jogador.CameraMaxZoomDistance = game.StarterPlayer.CameraMaxZoomDistance
-		end
-	end
-)
-
-Jogador.Backpack.ChildRemoved:connect(
-	function(L_371_arg1)
-		Evt.Holster:FireServer(L_371_arg1)
-	end
-)
-
-Personagem.ChildRemoved:connect(
-	function(L_371_arg1)
-		if L_371_arg1 == ArmaClient then
-			if Equipped then
-				if Balinha then
-					Balinha:Destroy()
-				end
-				Unset()
-			end
-		end
-	end
-)
-
-local gunRecoil = CFrame.new()
-local baseRecoilIntensity = 0.05 -- Base recoil intensity
-local adsRecoilMultiplier = 0.5 -- Multiplier for recoil when aiming down sights
-local dampingFactor = 0.4 -- Adjusted for a snappier return
-local staticIndex = 0 -- Initialize the index as a local variable
-
-RS.RenderStepped:connect(
-	function(Update)
-		if not Equipped then
-			HeadBase.CFrame = Camera.CFrame * CFrame.new(0, 0, -.5)
-		else
-			Update_Gui()
-			HalfStepFunc(-math.asin(Camera.CoordinateFrame.lookVector.y))
-
-			Recoil = Recoil:lerp(CFrame.new(), Settings.PunchRecover)
-
-			local Raio = Ray.new(ArmaClone.Handle.Position, Camera.CFrame.LookVector * Settings.GunSize)
-			local Hit, Pos = workspace:FindPartOnRayWithIgnoreList(Raio, Ray_Ignore, false, true)
-
-			local lk = Camera.CoordinateFrame.lookVector
-			local x = lk.X
-			local rise = lk.Y
-			local z = lk.Z
-
-			local lookpitch, lookyaw = math.asin(rise), -math.atan(x / z)
-
-			local pitchChange = lastPitch - lookpitch
-			local yawChange = lastYaw - lookyaw
-			pitchChange = pitchChange * ((math.abs(pitchChange) < 1) and 1 or 0)
-			yawChange = yawChange * ((math.abs(yawChange) < 1) and 1 or 0)
-			yTilt = (yTilt * 0.5 + pitchChange)
-			xTilt = (xTilt * 0.7 + yawChange)
-
-			lastPitch = lookpitch
-			lastYaw = lookyaw
-
-			local SwayLerp = 0.1 -- Adjust lerp value (0 to 1, higher for smoother)
-			sway.t = sway.t:Lerp(V3(xTilt, yTilt, TVal), SwayLerp)
-			local swayVec = sway.p
-			local TWAY = swayVec.z
-			local XSWY = swayVec.X * 2.2
-			local YSWY = swayVec.Y * 2.2
-
-			local xWalk = SIN(t * 3.3) * (SpeedPrecision / ServerConfig.RunWalkSpeed * (WVal + 1))
-			local yWalk = COS(t * 3) * (SpeedPrecision / ServerConfig.RunWalkSpeed * (WVal + 1))
-			local xWak = SIN(t * 1.5) * (SpeedPrecision / ServerConfig.RunWalkSpeed * (WVal + 1))
-			local yWak = COS(t * 3) * (SpeedPrecision / ServerConfig.RunWalkSpeed * (WVal + 1))
-
-			local zWalk = WVal
-			Walk.t = Vector3.new(xWalk, yWalk, WVal)
-			local Walk2 = Walk.p
-			local xWalk2 = Walk2.X / 3
-			local yWalk2 = Walk2.Y / 3
-			local zWalk2 = Walk2.Z / 10
-			local xWalk3 = Walk2.X / 1
-			local yWalk3 = Walk2.Y / 1
-			if Clone then
-				if Aiming then
-					zWalk = 0
-				else
-					zWalk = WVal
-				end
-				if Walking then
-					WalkRate = (Human.WalkSpeed / 3)
-					if a then
-						TVal = Lerp(0, (-.12 * SpeedPrecision / ServerConfig.RunWalkSpeed), 10)
-					elseif d then
-						TVal = Lerp(0, (.12 * SpeedPrecision / ServerConfig.RunWalkSpeed), 10)
-					else
-						TVal = Lerp(0, 0, 30)
-					end
-				else
-					WalkRate = (SpeedPrecision / ServerConfig.RunWalkSpeed) + .5
-					WVal = Lerp(1, 1, 1)
-				end
-				local currtick = tick()
-				t = t + ((currtick - OldTick) * WalkRate)
-				OldTick = currtick
-				local Sway = CFa(YSWY * RAD(5), -XSWY * RAD(5), -XSWY * RAD(0))
-				Waval =
-					Waval:lerp(
-						CFn(xWalk3 / 220, -yWalk3 / 180, 0) * CFn(xWak / 220, -yWak / 180, 0) * CFa(0, 0, zWalk2 / 5) *
-						CFa(0, 0, (TWAY / 2) / 10),
-						1
-					)
-				Clone.C0 = Clone.C0:lerp(Waval * Sway, 1)
-			end
-
-			local function generateRecoilPattern()
-				return {
-					math.random() * 2 * baseRecoilIntensity - baseRecoilIntensity, -- Random vertical recoil
-					math.random() * 2 * baseRecoilIntensity - baseRecoilIntensity, -- Random vertical recoil
-					math.random() * 2 * baseRecoilIntensity - baseRecoilIntensity / 2, -- Random horizontal recoil
-					math.random() * 2 * baseRecoilIntensity - baseRecoilIntensity / 2, -- Random horizontal recoil
-					0 -- No horizontal recoil for this step
-				}
-			end
-
-			-- Initial recoil patterns
-			local recoilPatternV = generateRecoilPattern()
-			local recoilPatternH = generateRecoilPattern()
-
-			-- Determine current recoil intensity based on ADS
-			local currentRecoilIntensity = baseRecoilIntensity
-			if Aiming then
-				currentRecoilIntensity = baseRecoilIntensity * adsRecoilMultiplier
-			end
-
-			-- Update recoil patterns with the current recoil intensity
-			recoilPatternV = generateRecoilPattern()
-			recoilPatternH = generateRecoilPattern()
-
-			-- Apply gun recoil (modified)
-			staticIndex = (staticIndex + 1) % #recoilPatternV
-			if staticIndex == 0 then
-				staticIndex = #recoilPatternV
-			end
-
-			-- Instant Kickback Effect
-			local instantKickback =
-				CFrame.Angles(recoilPatternV[staticIndex] * 1.5, recoilPatternH[staticIndex] * 1.5, 0)
-			gunRecoil = gunRecoil * instantKickback
-
-			-- Calculate target CFrame for gradual return
-			local targetCFrame = CFrame.Angles(recoilPatternV[staticIndex], recoilPatternH[staticIndex], 0)
-
-			-- Interpolate position and orientation separately
-			local newPosition = Lerp(gunRecoil.Position, targetCFrame.Position, dampingFactor)
-			local newOrientation = gunRecoil:Lerp(targetCFrame, dampingFactor)
-
-			-- Combine position and orientation to create the final CFrame
-			gunRecoil = CFrame.new(newPosition) * newOrientation
-
-			ArmaClone.Handle.CFrame = ArmaClone.Handle.CFrame * gunRecoil
-
-			if OverHeat and Can_Shoot then
-				delay(
-					5,
-					function()
-						if Can_Shoot then
-							OverHeat = false
-						end
-					end
-				)
-			end
-
-			if BSpread then
-				local currTime = time()
-				if currTime - LastSpreadUpdate > FireRate * 2 then
-					LastSpreadUpdate = currTime
-					BSpread = math.max(Settings.MinSpread, BSpread - (Settings.AimInaccuracyStepAmount) / 5)
-					RecoilPower = math.max(Settings.MinRecoilPower, RecoilPower - (Settings.RecoilPowerStepAmount) / 4)
-				end
-			end
-
-			if OverHeat then
-				ArmaClone.SmokePart.OverHeat.Enabled = true
-			else
-				ArmaClone.SmokePart.OverHeat.Enabled = false
-			end
-
-			local shouldered = false
-
-			if Aiming then
-				local aimCFrame
-				if NVG and ArmaClone.AimPart:FindFirstChild("NVAim") then
-					if not Bipod then
-						aimCFrame = ArmaClone.AimPart.CFrame * ArmaClone.AimPart.NVAim.CFrame
-					else
-						Aiming = false
-						stance = 0
-						return
-					end
-				else
-					if AimPartMode == 1 and ArmaClone:FindFirstChild("AimPart2") then
-						aimCFrame = ArmaClone.AimPart2.CFrame
-					else
-						aimCFrame = ArmaClone.AimPart.CFrame
-					end
-				end
-
-				local targetCFrame = Clone.C1 * Clone.C0:inverse() * Recoil * aimCFrame:toObjectSpace(HeadBase.CFrame)
-
-				-- Adding jitter
-				local jitterOffset =
-					CFrame.Angles(math.rad(math.random(-1, 1) * 0.1), math.rad(math.random(-1, 1) * 0.1), 0)
-				targetCFrame = targetCFrame * jitterOffset
-
-				local distance = (Clone.C1.p - targetCFrame.p).magnitude
-
-				-- Slightly adjusted lerp for ADS
-				local lerpAlpha = math.clamp(0.08 + distance * 0.12, 0.08, 0.35)
-
-				-- Bump effect when shouldering (only once per aiming action)
-				if not shouldered then
-					local bumpOffset = CFrame.new(0, 0, -0.05) -- Adjust bump intensity as needed
-					targetCFrame = targetCFrame * bumpOffset
-					shouldered = true
-				end
-
-				Clone.C1 = Clone.C1:Lerp(targetCFrame, lerpAlpha)
-			else
-				if Hit and stance == 0 and not Bipod then
-					local targetCFrame =
-						Clone.C0:inverse() * Recoil *
-						CFrame.new(
-							0,
-							0,
-							(((ArmaClone.Handle.Position - Pos).magnitude / Settings.GunSize) - 1) *
-							-Settings.GunFOVReduction
-						)
-					local distance = (Clone.C1.p - targetCFrame.p).magnitude
-					local lerpAlpha = math.clamp(0.05 + distance * 0.1, 0.05, 0.3)
-					Clone.C1 = Clone.C1:Lerp(targetCFrame, lerpAlpha)
-				else
-					local targetCFrame = Clone.C0:inverse() * Recoil * CFrame.new()
-					local distance = (Clone.C1.p - targetCFrame.p).magnitude
-					local lerpAlpha = math.clamp(0.05 + distance * 0.1, 0.05, 0.3)
-					Clone.C1 = Clone.C1:Lerp(targetCFrame, lerpAlpha)
-				end
-				shouldered = false -- Reset for next shouldering
-			end
-
-			if ArmaClone:FindFirstChild("BipodPoint") ~= nil then
-				local BipodRay = Ray.new(ArmaClone.BipodPoint.Position, ArmaClone.BipodPoint.CFrame.UpVector * -1.75)
-				local BipodHit, BipodPos, BipodNorm =
-					workspace:FindPartOnRayWithIgnoreList(BipodRay, Ray_Ignore, false, true)
-
-				if BipodHit and (stance == 0 or stance == 2) then
-					Gui.Bipod.ImageColor3 = Color3.fromRGB(255, 255, 0)
-					BipodEnabled = true
-					if BipodEnabled and Bipod then
-						Gui.Bipod.ImageColor3 = Color3.fromRGB(255, 255, 255)
-						local StaminaValue = 0
-						HeadBase.CFrame =
-							Camera.CFrame * CFrame.new(0, 0, -.5) *
-							CFrame.Angles(
-								math.rad(StaminaValue * math.sin(tick() * 2.5)),
-								math.rad(StaminaValue * math.sin(tick() * 1.25)),
-								0
-							)
-						if stance == 0 and not Aiming then
-							Clone.C1 =
-								Clone.C1:Lerp(
-									Clone.C0:inverse() * Recoil *
-									CFrame.new(
-										0,
-										(((ArmaClone.BipodPoint.Position - BipodPos).magnitude) - 1) * (-1.5),
-										0
-									),
-									0.15
-								)
-						end
-					else
-						Gui.Bipod.ImageColor3 = Color3.fromRGB(255, 255, 0)
-						local StaminaValue =
-							Settings.SwayBase +
-							(1 -
-								(Personagem.Saude.Variaveis.Stamina.Value / Personagem.Saude.Variaveis.Stamina.MaxValue)) *
-							Settings.MaxSway
-						HeadBase.CFrame =
-							Camera.CFrame * CFrame.new(0, 0, -.5) *
-							CFrame.Angles(
-								math.rad(StaminaValue * math.sin(tick() * 2.5)),
-								math.rad(StaminaValue * math.sin(tick() * 1.25)),
-								0
-							)
-					end
-				else
-					Gui.Bipod.ImageColor3 = Color3.fromRGB(255, 0, 0)
-					Bipod = false
-					BipodEnabled = false
-					local StaminaValue =
-						Settings.SwayBase +
-						(1 - (Personagem.Saude.Variaveis.Stamina.Value / Personagem.Saude.Variaveis.Stamina.MaxValue)) *
-						Settings.MaxSway
-					HeadBase.CFrame =
-						Camera.CFrame * CFrame.new(0, 0, -.5) *
-						CFrame.Angles(
-							math.rad(StaminaValue * math.sin(tick() * 2.5)),
-							math.rad(StaminaValue * math.sin(tick() * 1.25)),
-							0
-						)
-				end
-			else
-				Gui.Bipod.ImageColor3 = Color3.fromRGB(255, 0, 0)
-				local StaminaValue =
-					Settings.SwayBase +
-					(1 - (Personagem.Saude.Variaveis.Stamina.Value / Personagem.Saude.Variaveis.Stamina.MaxValue)) *
-					Settings.MaxSway
-				HeadBase.CFrame =
-					Camera.CFrame * CFrame.new(0, 0, -.5) *
-					CFrame.Angles(
-						math.rad(StaminaValue * math.sin(tick() * 2.5)),
-						math.rad(StaminaValue * math.sin(tick() * 1.25)),
-						0
-					)
-			end
-
-			if Equipped and LaserAtivo then
-				if NVG then
-					Pointer.Transparency = 0
-					Laser.Enabled = true
-				else
-					if not ServerConfig.RealisticLaser then
-						Laser.Enabled = true
-					else
-						Laser.Enabled = false
-					end
-
-					if IRmode then
-						Pointer.Transparency = 1
-					else
-						Pointer.Transparency = 0
-					end
-				end
-
-				local L_361_ = Ray.new(ArmaClone.LaserPoint.Position, AnimBase.CFrame.lookVector * 999)
-				local Hit, Pos, Normal = workspace:FindPartOnRayWithIgnoreList(L_361_, Ray_Ignore, false, true)
-
-				LaserEP.CFrame = CFrame.new(0, 0, -LaserDist)
-				Pointer.CFrame = CFrame.new(Pos, Pos + Normal)
-
-				if Hit then
-					LaserDist = (ArmaClone.LaserPoint.Position - Pos).magnitude
-				else
-					LaserDist = 999
-				end
-				Evt.SVLaser:FireServer(Pos, 1, ArmaClone.LaserPoint.Color, ArmaClient, IRmode)
-			end
-		end
-	end
-)
-
-Evt.SVFlash.OnClientEvent:Connect(
-	function(Player, Mode, Arma, Angle, Bright, Color, Range)
-		if Player ~= Jogador and Player.Character["S" .. Arma.Name].Grip:FindFirstChild("Flash") ~= nil then
-			local Arma = Player.Character["S" .. Arma.Name]
-			local Luz = Instance.new("SpotLight")
-			local bg = Instance.new("BillboardGui")
-
-			if Mode == true then
-				Luz.Parent = Arma.Grip.Flash
-				Luz.Angle = Angle
-				Luz.Brightness = Bright
-				Luz.Range = Range
-				Luz.Color = Color
-
-				bg.Parent = Arma.Grip.Flash
-				bg.Adornee = Arma.Grip.Flash
-				bg.Size = UDim2.new(10, 0, 10, 0)
-
-				local flash = Instance.new("ImageLabel", bg)
-				flash.BackgroundTransparency = 1
-				flash.Size = UDim2.new(1, 20, 1, 20)
-				flash.AnchorPoint = Vector2.new(0.5, 0.5)
-				flash.Position = UDim2.new(0.5, 0, 0.5, 0)
-				flash.Image = "http://www.roblox.com/asset/?id=1847258023"
-				flash.ImageColor3 = Color
-				flash.ImageTransparency = 0.25
-				flash.Rotation = math.random(-45, 45)
-			else
-				if Arma.Grip.Flash:FindFirstChild("SpotLight") ~= nil then
-					Arma.Grip.Flash:FindFirstChild("SpotLight"):Destroy()
-				end
-				if Arma.Grip.Flash:FindFirstChild("BillboardGui") ~= nil then
-					Arma.Grip.Flash:FindFirstChild("BillboardGui"):Destroy()
-				end
-			end
-		end
-	end
-)
-
-Evt.SVLaser.OnClientEvent:Connect(
-	function(Player, Position, Modo, Cor, Arma, IR)
-		if Player ~= Jogador then
-			if BulletModel:FindFirstChild(Player.Name .. "_Laser") == nil then
-				local Dot = Instance.new("Part")
-				local Att0 = Instance.new("Attachment")
-				Att0.Name = "Att0"
-				Att0.Parent = Dot
-				Dot.Name = Player.Name .. "_Laser"
-				Dot.Parent = BulletModel
-				Dot.Transparency = 1
-
-				if
-					Player.Character and Player.Character:FindFirstChild("S" .. Arma.Name) ~= nil and
-					Player.Character:WaitForChild("S" .. Arma.Name):WaitForChild("Grip"):FindFirstChild("Laser") ~=
-					nil
-				then
-					local Muzzle =
-						Player.Character:WaitForChild("S" .. Arma.Name):WaitForChild("Grip"):WaitForChild("Laser")
-
-					local Laser = Instance.new("Beam")
-					Laser.Parent = Dot
-					Laser.Transparency = NumberSequence.new(0)
-					Laser.LightEmission = 1
-					Laser.LightInfluence = 0
-					Laser.Attachment0 = Att0
-					Laser.Attachment1 = Muzzle
-					Laser.Color = ColorSequence.new(Cor)
-					Laser.FaceCamera = true
-					Laser.Width0 = 0.01
-					Laser.Width1 = 0.01
-					if not NVG then
-						Laser.Enabled = false
-					end
-				end
-			end
-
-			if Modo == 1 then
-				if BulletModel:FindFirstChild(Player.Name .. "_Laser") ~= nil then
-					local LA = BulletModel:FindFirstChild(Player.Name .. "_Laser")
-					LA.Shape = "Ball"
-					LA.Size = Vector3.new(0.05, 0.05, 0.01)
-					LA.CanCollide = false
-					LA.Anchored = true
-					LA.Color = Cor
-					LA.Material = Enum.Material.Neon
-					LA.Position = Position
-
-					if NVG then
-						LA.Transparency = 0
-
-						if LA:FindFirstChild("Beam") ~= nil then
-							LA.Beam.Enabled = true
-						end
-					else
-						if
-							Player.Character and Player.Character:FindFirstChild("S" .. Arma.Name) ~= nil and
-							Player.Character:WaitForChild("S" .. Arma.Name):WaitForChild("Grip"):FindFirstChild(
-								"Laser"
-							) ~= nil
-						then
-							if IR then
-								LA.Transparency = 1
-							else
-								LA.Transparency = 0
-							end
-						end
-
-						if LA:FindFirstChild("Beam") ~= nil then
-							LA.Beam.Enabled = false
-						end
-					end
-				end
-			elseif Modo == 2 then
-				if BulletModel:FindFirstChild(Player.Name .. "_Laser") ~= nil then
-					local LA = BulletModel:FindFirstChild(Player.Name .. "_Laser")
-					LA:Destroy()
-				end
-			end
-		end
-	end
-)
-
-function Launcher()
-	if Settings.FireModes.Explosive == true then
-		Character:WaitForChild("S" .. ArmaClone.Name):WaitForChild("Grip"):WaitForChild("Fire2"):Play()
-
-		local M203 = Instance.new("Part")
-		M203.Shape = "Ball"
-		M203.CanCollide = false
-		M203.Size = Vector3.new(0.25, 0.25, 0.25)
-		M203.Material = Enum.Material.Metal
-		M203.Color = Color3.fromRGB(27, 42, 53)
-		M203.Parent = BulletModel
-		M203.CFrame = ArmaClone.SmokePart2.CFrame
-		M203.Velocity = ArmaClone.SmokePart2.CFrame.lookVector * (600 - 196.2)
-
-		local At1 = Instance.new("Attachment")
-		At1.Name = "At1"
-		At1.Position = Vector3.new(-.15, 0, 0)
-		At1.Parent = M203
-
-		local At2 = Instance.new("Attachment")
-		At2.Name = "At2"
-		At2.Position = Vector3.new(.15, 0, 0)
-		At2.Parent = M203
-
-		local Particles = Instance.new("Trail")
-		Particles.Transparency =
-			NumberSequence.new(
-				{
-					NumberSequenceKeypoint.new(0, 0, 0),
-					NumberSequenceKeypoint.new(1, 1)
-				}
-			)
-		Particles.WidthScale =
-			NumberSequence.new(
-				{
-					NumberSequenceKeypoint.new(0, 2, 0),
-					NumberSequenceKeypoint.new(1, 1)
-				}
-			)
-
-		Particles.Texture = "rbxassetid://232918622"
-		Particles.TextureMode = Enum.TextureMode.Stretch
-
-		Particles.FaceCamera = true
-		Particles.LightEmission = 0
-		Particles.LightInfluence = 1
-		Particles.Lifetime = 0.2
-		Particles.Attachment0 = At1
-		Particles.Attachment1 = At2
-		Particles.Parent = M203
-
-		local Hit2, Pos2, Norm2, Mat2
-		local Hit, Pos, Norm, Mat
-		local L_257_ = ArmaClone.SmokePart2.Position
-		local L_258_ = M203.Position
-		local L_260_ = false
-		local recast
-
-		while true do
-			RS.Heartbeat:wait()
-			L_258_ = M203.Position
-
-			Hit2, Pos2, Norm2, Mat2 =
-				workspace:FindPartOnRayWithIgnoreList(Ray.new(L_257_, (L_258_ - L_257_) * 20), Ray_Ignore, false, true)
-
-			Hit, Pos, Norm, Mat =
-				workspace:FindPartOnRayWithIgnoreList(Ray.new(L_257_, (L_258_ - L_257_)), Ray_Ignore, false, true)
-
-			if Hit2 then
-				while not recast do
-					if
-						Hit2 and
-						(Hit2 and Hit2.Transparency >= 1 or Hit2.CanCollide == false or Hit2.Name == "Ignorable" or
-							Hit2.Name == "Glass" or
-							Hit2.Parent.Name == "Top" or
-							Hit2.Parent.Name == "Helmet" or
-							Hit2.Parent.Name == "Up" or
-							Hit2.Parent.Name == "Down" or
-							Hit2.Parent.Name == "Face" or
-							Hit2.Parent.Name == "Olho" or
-							Hit2.Parent.Name == "Headset" or
-							Hit2.Parent.Name == "Numero" or
-							Hit2.Parent.Name == "Vest" or
-							Hit2.Parent.Name == "Chest" or
-							Hit2.Parent.Name == "Waist" or
-							Hit2.Parent.Name == "Back" or
-							Hit2.Parent.Name == "Belt" or
-							Hit2.Parent.Name == "Leg1" or
-							Hit2.Parent.Name == "Leg2" or
-							Hit2.Parent.Name == "Arm1" or
-							Hit2.Parent.Name == "Arm2") and
-						Hit2.Name ~= "Right Arm" and
-						Hit2.Name ~= "Left Arm" and
-						Hit2.Name ~= "Right Leg" and
-						Hit2.Name ~= "Left Leg" and
-						Hit2.Name ~= "Armor" and
-						Hit2.Name ~= "EShield"
-					then
-						table.insert(Ray_Ignore, Hit2)
-						recast = true
-					end
-
-					if recast then
-						Hit2, Pos2, Norm2, Mat2 =
-							workspace:FindPartOnRayWithIgnoreList(
-								Ray.new(L_257_, (L_258_ - L_257_) * 20),
-								Ray_Ignore,
-								false,
-								true
-							)
-						Hit, Pos, Norm, Mat =
-							workspace:FindPartOnRayWithIgnoreList(
-								Ray.new(L_257_, (L_258_ - L_257_)),
-								Ray_Ignore,
-								false,
-								true
-							)
-						recast = false
-					else
-						break
-					end
-				end
-			end
-
-			if Hit and not recast then
-				Evt.LauncherHit:FireServer(Pos, Hit, Norm, Mat)
-				Hitmarker.Explosion(Pos, Hit, Norm)
-				M203:remove()
-
-				local Hitmark = Instance.new("Attachment")
-				Hitmark.CFrame = CFrame.new(Pos, Pos + Norm)
-				Hitmark.Parent = workspace.Terrain
-				Debris:AddItem(Hitmark, 5)
-
-				local Exp = Instance.new("Explosion")
-				Exp.BlastPressure = 0
-				Exp.BlastRadius = Settings.LauncherRadius
-				Exp.DestroyJointRadiusPercent = 0
-				Exp.Position = Hitmark.Position
-				Exp.Parent = Hitmark
-				Exp.Visible = false
-
-				Exp.Hit:connect(
-					function(hitPart, partDistance)
-						local FoundHuman, VitimaHuman = CheckForHumanoid(hitPart)
-						local damage = math.random(Settings.LauncherDamage[1], Settings.LauncherDamage[2])
-						if FoundHuman == true and VitimaHuman.Health > 0 then
-							local distance_factor = partDistance / Exp.BlastRadius -- get the distance as a value between 0 and 1
-							distance_factor = 1 - distance_factor -- flip the amount, so that lower == closer == more damage
-							if distance_factor > 0 then
-								Evt.Damage:FireServer(VitimaHuman, (damage * distance_factor), 0, 0)
-							end
-						end
-					end
-				)
-
-				break
-			end
-			L_257_ = L_258_
-		end
-	end
-end
-
-function playGunshotSound(fireSoundId, suppressorSoundId)
-	local gun = Character:WaitForChild("S" .. ArmaClone.Name):WaitForChild("Grip")
-
-	if Silencer.Value then
-		gun:WaitForChild("Supressor"):Play() -- Play the suppressor sound if equipped
+	if WeaponData.RainbowMode then
+		BColor = Color3.fromRGB(math.random(0,255),math.random(0,255),math.random(0,255))
 	else
-		local sound = Instance.new("Sound")
-		sound.SoundId = fireSoundId -- Use the passed SoundId for the regular shot
-		sound.Parent = gun
-		sound:Play()
+		BColor = WeaponData.TracerColor
+	end
+
+	if Visivel then
+		if gameRules.ReplicatedBullets then
+			Evt.ServerBullet:FireServer(Origin,Direction,WeaponData,ModTable)
+		end
+
+		if WeaponData.Tracer == true then
+
+			local At1 = Instance.new("Attachment")
+			At1.Name = "At1"
+			At1.Position = Vector3.new(-(.05),0,0)
+			At1.Parent = Bullet
+
+			local At2  = Instance.new("Attachment")
+			At2.Name = "At2"
+			At2.Position = Vector3.new((.05),0,0)
+			At2.Parent = Bullet
+
+			local Particles = Instance.new("Trail")
+			Particles.Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0, 0);
+				NumberSequenceKeypoint.new(1, 1);
+			}
+			)
+			Particles.WidthScale = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 2, 0);
+				NumberSequenceKeypoint.new(1, 1);
+			}
+			)
+
+
+			Particles.Color = ColorSequence.new(BColor)
+			Particles.Texture = "rbxassetid://232918622"
+			Particles.TextureMode = Enum.TextureMode.Stretch
+
+			Particles.FaceCamera = true
+			Particles.LightEmission = 1
+			Particles.LightInfluence = 0
+			Particles.Lifetime = .25
+			Particles.Attachment0 = At1
+			Particles.Attachment1 = At2
+			Particles.Parent = Bullet
+		end
+
+		if WeaponData.BulletFlare == true then
+			local bg = Instance.new("BillboardGui", Bullet)
+			bg.Adornee = Bullet
+			bg.Enabled = false
+			local flashsize = math.random(275, 375)/10
+			bg.Size = UDim2.new(flashsize, 0, flashsize, 0)
+			bg.LightInfluence = 0
+			local flash = Instance.new("ImageLabel", bg)
+			flash.BackgroundTransparency = 1
+			flash.Size = UDim2.new(1, 0, 1, 0)
+			flash.Position = UDim2.new(0, 0, 0, 0)
+			flash.Image = "http://www.roblox.com/asset/?id=1047066405"
+			flash.ImageTransparency = math.random(2, 5)/15
+			flash.ImageColor3 = BColor
+
+			spawn(function()
+				wait(.1)
+				if not Bullet:FindFirstChild("BillboardGui") then return; end;
+				Bullet.BillboardGui.Enabled = true
+			end)
+		end
+
+	end
+
+	local BulletMass = Bullet:GetMass()
+	local Force = Vector3.new(0,BulletMass * (196.2) - (WeaponData.BulletDrop) * (196.2), 0)
+	local BF = Instance.new("BodyForce",Bullet)
+
+	Bullet.CFrame = BulletCF
+	Bullet:ApplyImpulse(Direction * WeaponData.MuzzleVelocity * ModTable.MuzzleVelocity)
+	BF.Force = Force
+
+	game.Debris:AddItem(Bullet, 5)
+
+	CastRay(Bullet, Origin)
+end
+
+
+function meleeCast()
+
+	local recast
+	-- Set an origin and directional vector
+	local rayOrigin 	= cam.CFrame.Position
+	local rayDirection 	= cam.CFrame.LookVector * WeaponData.BladeRange
+
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterDescendantsInstances = Ignore_Model
+	raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+	raycastParams.IgnoreWater = true
+	local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+
+
+	if raycastResult then
+		local Hit2 = raycastResult.Instance
+
+		--Check if it's a hat or accessory
+		if Hit2 and Hit2.Parent:IsA('Accessory') then
+			for _,players in pairs(game.Players:GetPlayers()) do
+				if not players.Character then continue; end;
+				for i, hats in pairs(players.Character:GetChildren()) do
+					if not hats:IsA("Accessory") then continue; end;
+					table.insert(Ignore_Model, hats)
+				end
+			end
+			return meleeCast()
+		end
+
+		if Hit2 and Hit2.Name == "Ignorable" or Hit2.Name == "Ignore" or Hit2.Parent.Name == "Top" or Hit2.Parent.Name == "Helmet" or Hit2.Parent.Name == "Up" or Hit2.Parent.Name == "Down" or Hit2.Parent.Name == "Face" or Hit2.Parent.Name == "Olho" or Hit2.Parent.Name == "Headset" or Hit2.Parent.Name == "Numero" or Hit2.Parent.Name == "Vest" or Hit2.Parent.Name == "Chest" or Hit2.Parent.Name == "Waist" or Hit2.Parent.Name == "Back" or Hit2.Parent.Name == "Belt" or Hit2.Parent.Name == "Leg1" or Hit2.Parent.Name == "Leg2" or Hit2.Parent.Name == "Arm1"  or Hit2.Parent.Name == "Arm2" then
+			table.insert(Ignore_Model, Hit2)
+			return meleeCast()
+		end
+
+		if Hit2 and Hit2.Parent.Name == "Top" or Hit2.Parent.Name == "Helmet" or Hit2.Parent.Name == "Up" or Hit2.Parent.Name == "Down" or Hit2.Parent.Name == "Face" or Hit2.Parent.Name == "Olho" or Hit2.Parent.Name == "Headset" or Hit2.Parent.Name == "Numero" or Hit2.Parent.Name == "Vest" or Hit2.Parent.Name == "Chest" or Hit2.Parent.Name == "Waist" or Hit2.Parent.Name == "Back" or Hit2.Parent.Name == "Belt" or Hit2.Parent.Name == "Leg1" or Hit2.Parent.Name == "Leg2" or Hit2.Parent.Name == "Arm1"  or Hit2.Parent.Name == "Arm2" then
+			table.insert(Ignore_Model, Hit2.Parent)
+			return meleeCast()
+		end
+
+		if Hit2 and (Hit2.Transparency >= 1 or Hit2.CanCollide == false) and Hit2.Name ~= 'Head' and Hit2.Name ~= 'Right Arm' and Hit2.Name ~= 'Left Arm' and Hit2.Name ~= 'Right Leg' and Hit2.Name ~= 'Left Leg' and Hit2.Name ~= "UpperTorso" and Hit2.Name ~= "LowerTorso" and Hit2.Name ~= "RightUpperArm" and Hit2.Name ~= "RightLowerArm" and Hit2.Name ~= "RightHand" and Hit2.Name ~= "LeftUpperArm" and Hit2.Name ~= "LeftLowerArm" and Hit2.Name ~= "LeftHand" and Hit2.Name ~= "RightUpperLeg" and Hit2.Name ~= "RightLowerLeg" and Hit2.Name ~= "RightFoot" and Hit2.Name ~= "LeftUpperLeg" and Hit2.Name ~= "LeftLowerLeg" and Hit2.Name ~= "LeftFoot" and Hit2.Name ~= 'Armor' and Hit2.Name ~= 'EShield' then
+			table.insert(Ignore_Model, Hit2)
+			return meleeCast()
+		end
+	end
+
+
+	if not raycastResult then return; end;
+	local FoundHuman,VitimaHuman = CheckForHumanoid(raycastResult.Instance)
+	HitMod.HitEffect(Ignore_Model, raycastResult.Position, raycastResult.Instance , raycastResult.Normal, raycastResult.Material, WeaponData)
+	Evt.HitEffect:FireServer(raycastResult.Position, raycastResult.Instance , raycastResult.Normal, raycastResult.Material, WeaponData)
+
+	local HitPart = raycastResult.Instance
+
+	if not FoundHuman or VitimaHuman.Health <= 0 then return; end;
+	local SKP_02 = SKP_01.."-"..plr.UserId
+
+	if HitPart.Name == "Head" or HitPart.Parent.Name == "Top" or HitPart.Parent.Name == "Headset" or HitPart.Parent.Name == "Olho" or HitPart.Parent.Name == "Face" or HitPart.Parent.Name == "Numero" then
+		Thread:Spawn(function()
+			Evt.Damage:InvokeServer(WeaponTool, VitimaHuman, 0, 1, WeaponData, ModTable, nil, nil, SKP_02)	
+		end)
+
+	elseif HitPart.Name == "Torso" or HitPart.Name == "UpperTorso" or HitPart.Name == "LowerTorso" or HitPart.Parent.Name == "Chest" or HitPart.Parent.Name == "Waist" or HitPart.Name == "RightUpperArm" or HitPart.Name == "RightLowerArm" or HitPart.Name == "RightHand" or HitPart.Name == "LeftUpperArm" or HitPart.Name == "LeftLowerArm" or HitPart.Name == "LeftHand" then
+		Thread:Spawn(function()
+			Evt.Damage:InvokeServer(WeaponTool, VitimaHuman, 0, 2, WeaponData, ModTable, nil, nil, SKP_02)	
+		end)
+
+	elseif HitPart.Name == "Right Arm" or HitPart.Name == "Right Leg" or HitPart.Name == "Left Leg" or HitPart.Name == "Left Arm" or HitPart.Name == "RightUpperLeg" or HitPart.Name == "RightLowerLeg" or HitPart.Name == "RightFoot" or HitPart.Name == "LeftUpperLeg" or HitPart.Name == "LeftLowerLeg" or HitPart.Name == "LeftFoot" then
+		Thread:Spawn(function()
+			Evt.Damage:InvokeServer(WeaponTool, VitimaHuman, 0, 3, WeaponData, ModTable, nil, nil, SKP_02)	
+		end)
+	end;		
+end;
+
+function UpdateGui()
+	if not SE_GUI or not WeaponData then return; end;
+	local HUD = SE_GUI.GunHUD
+
+	HUD.NText.Text = WeaponData.gunName
+	HUD.BText.Text = WeaponData.BulletType
+	HUD.A.Visible = SafeMode
+	HUD.Att.Silencer.Visible = Suppressor
+	HUD.Att.Bipod.Visible = BipodAtt
+	HUD.Sens.Text = (Sens/100)
+
+	if WeaponData.Jammed then
+		HUD.B.BackgroundColor3 = Color3.fromRGB(255,0,0)
+	else
+		HUD.B.BackgroundColor3 = Color3.fromRGB(255,255,255)
+	end
+
+	if Ammo > 0 then
+		HUD.B.Visible = true
+	else
+		HUD.B.Visible = false
+	end
+
+	if WeaponData.ShootType == 1 then
+		HUD.FText.Text = "Semi"
+	elseif WeaponData.ShootType == 2 then
+		HUD.FText.Text = "Burst"
+	elseif WeaponData.ShootType == 3 then
+		HUD.FText.Text = "Auto"
+	elseif WeaponData.ShootType == 4 then
+		HUD.FText.Text = "Pump-Action"
+	elseif WeaponData.ShootType == 5 then
+		HUD.FText.Text = "Bolt-Action"
+	end
+
+	if WeaponData.EnableZeroing then
+		HUD.ZeText.Visible = true
+		HUD.ZeText.Text = WeaponData.CurrentZero .." m"
+	else
+		HUD.ZeText.Visible = false
+	end
+
+	if WeaponData.MagCount then
+		HUD.SAText.Text = math.ceil(StoredAmmo/WeaponData.Ammo)
+		HUD.Magazines.Visible = true
+		HUD.Bullets.Visible = false
+	else
+		HUD.SAText.Text = StoredAmmo
+		HUD.Magazines.Visible = false
+		HUD.Bullets.Visible = true
+	end
+
+	if LaserAtt then
+		HUD.Att.Laser.Visible = true
+		if LaserActive then
+			if IRmode then
+				TS:Create(HUD.Att.Laser, TweenInfo.new(.1,Enum.EasingStyle.Linear), {ImageColor3 = Color3.fromRGB(0,255,0), ImageTransparency = .123}):Play()
+			else
+				TS:Create(HUD.Att.Laser, TweenInfo.new(.1,Enum.EasingStyle.Linear), {ImageColor3 = Color3.fromRGB(255,255,255), ImageTransparency = .123}):Play()
+			end
+		else
+			TS:Create(HUD.Att.Laser, TweenInfo.new(.1,Enum.EasingStyle.Linear), {ImageColor3 = Color3.fromRGB(255,0,0), ImageTransparency = .5}):Play()
+		end
+	else
+		HUD.Att.Laser.Visible = false
+	end
+
+	if TorchAtt then
+		HUD.Att.Flash.Visible = true
+		if TorchActive then
+			TS:Create(HUD.Att.Flash, TweenInfo.new(.1,Enum.EasingStyle.Linear), {ImageColor3 = Color3.fromRGB(255,255,255), ImageTransparency = .123}):Play()
+		else
+			TS:Create(HUD.Att.Flash, TweenInfo.new(.1,Enum.EasingStyle.Linear), {ImageColor3 = Color3.fromRGB(255,0,0), ImageTransparency = .5}):Play()
+		end
+	else
+		HUD.Att.Flash.Visible = false
+	end
+
+	if WeaponData.Type == "Grenade" then
+		SE_GUI.GrenadeForce.Visible = true
+	else
+		SE_GUI.GrenadeForce.Visible = false
 	end
 end
 
-local maxEchoDistance = 1000
-local maxGunshotDistance = 40
+function CheckMagFunction()
 
+	if aimming then
+		aimming = false
+		ADS(aimming)
+	end
 
-local function log(...)
-	print("[CLIENT]", ...)
+	if SE_GUI then
+		local HUD = SE_GUI.GunHUD
+
+		TS:Create(HUD.CMText,TweenInfo.new(.25,Enum.EasingStyle.Linear,Enum.EasingDirection.InOut,0,false,0),{TextTransparency = 0,TextStrokeTransparency = 0.75}):Play()
+
+		if Ammo >= WeaponData.Ammo then
+			HUD.CMText.Text = "Full"
+		elseif Ammo > math.floor((WeaponData.Ammo)*.75) and Ammo < WeaponData.Ammo then
+			HUD.CMText.Text = "Nearly full"
+		elseif Ammo < math.floor((WeaponData.Ammo)*.75) and Ammo > math.floor((WeaponData.Ammo)*.5) then
+			HUD.CMText.Text = "Almost half"
+		elseif Ammo == math.floor((WeaponData.Ammo)*.5) then
+			HUD.CMText.Text = "Half"
+		elseif Ammo > math.ceil((WeaponData.Ammo)*.25) and Ammo <  math.floor((WeaponData.Ammo)*.5) then
+			HUD.CMText.Text = "Less than half"
+		elseif Ammo < math.ceil((WeaponData.Ammo)*.25) and Ammo > 0 then
+			HUD.CMText.Text = "Almost empty"
+		elseif Ammo == 0 then
+			HUD.CMText.Text = "Empty"
+		end
+
+		delay(.25,function()
+			TS:Create(HUD.CMText,TweenInfo.new(.25,Enum.EasingStyle.Linear,Enum.EasingDirection.InOut,0,false,5),{TextTransparency = 1,TextStrokeTransparency = 1}):Play()
+		end)
+	end
+	mouse1down 	= false
+	SafeMode 	= false
+	GunStance 	= 0
+	Evt.GunStance:FireServer(GunStance,AnimData)
+	UpdateGui()
+	MagCheckAnim()
+	RunCheck()
 end
 
+function Grenade()
+	if GRDebounce then return; end;
+	GRDebounce = true;
+	GrenadeReady()
 
-GunshotEchoEvent.OnClientEvent:Connect(
-	function(echoSoundId, gunPosition, shooterName, gunName)
-		local distance = (Character.HumanoidRootPart.Position - gunPosition).Magnitude
+	repeat wait() until not CookGrenade;
+	TossGrenade()
+end
 
-		-- Echo Sound Handling (only for other players)
-		if game.Players.LocalPlayer.Name ~= shooterName then
-			if distance <= maxEchoDistance then
-				local echoSound = Instance.new("Sound")
-				echoSound.SoundId = echoSoundId
-				echoSound.Parent = workspace
-				echoSound.Volume = math.max(0, 1 - (distance / maxEchoDistance))
-				echoSound:Play()
+function TossGrenade()
+	if not WeaponTool or not WeaponData or not GRDebounce then return; end;
+	local SKP_02 = SKP_01.."-"..plr.UserId
+	GrenadeThrow()
+	if not WeaponTool or not WeaponData then return; end;
+	Evt.Grenade:FireServer(WeaponTool,WeaponData,cam.CFrame,cam.CFrame.LookVector,Power,SKP_02)
+	unset()
+end
+
+function GrenadeMode()
+	if Power >= 150 then
+		Power = 100
+		SE_GUI.GrenadeForce.Text = "Mid Throw"
+	elseif Power >= 100 then
+		Power = 50
+		SE_GUI.GrenadeForce.Text = "Low Throw"
+	elseif Power >= 50 then
+		Power = 150
+		SE_GUI.GrenadeForce.Text = "High Throw"
+	end
+end
+
+function JamChance()
+	if not WeaponData or not WeaponData.CanBreak or WeaponData.Jammed or Ammo - 1 <= 0 then return; end;
+	local Jam = math.random(1000)
+	if Jam > 2 then return; end;
+	WeaponData.Jammed = true
+	while not _G.GunJamEventReady do
+		print("Waiting for GunJamEvent to be available...")
+		task.wait(0.1)
+	end
+
+	if _G.GunJamEvent then
+		_G.GunJamEvent:Fire()
+		print("GunJamEvent fired.")
+	else
+		warn("GunJamEvent is not available.")
+	end
+	WeaponInHand.Handle.Click:Play()
+end
+
+function Jammed()
+	if not WeaponData or WeaponData.Type ~= "Gun" or not WeaponData.Jammed then return; end;
+	mouse1down = false
+	reloading = true
+	SafeMode = false
+	GunStance = 0
+	Evt.GunStance:FireServer(GunStance,AnimData)
+	UpdateGui()
+
+	JammedAnim()
+	WeaponData.Jammed = false
+	UpdateGui()
+	reloading = false
+	RunCheck()
+end
+
+function Reload()
+	if WeaponData.Type == "Gun" and StoredAmmo > 0 and (Ammo < WeaponData.Ammo or WeaponData.IncludeChamberedBullet and Ammo < WeaponData.Ammo + 1) then
+
+		mouse1down = false
+		reloading = true
+		SafeMode = false
+		GunStance = 0
+		Evt.GunStance:FireServer(GunStance,AnimData)
+		UpdateGui()
+
+		if WeaponData.ShellInsert then
+			if Ammo > 0 then
+				for i = 1,WeaponData.Ammo - Ammo do
+					if StoredAmmo > 0 and Ammo < WeaponData.Ammo then
+						if CancelReload then
+							break
+						end
+						ReloadAnim()
+						Ammo = Ammo + 1
+						StoredAmmo = StoredAmmo - 1
+						UpdateGui()
+					end
+				end
+			else
+				TacticalReloadAnim()
+				Ammo = Ammo + 1
+				StoredAmmo = StoredAmmo - 1
+				UpdateGui()
+				for i = 1,WeaponData.Ammo - Ammo do
+					if StoredAmmo > 0 and WeaponData and Ammo < WeaponData.Ammo then
+						if CancelReload then
+							break
+						end
+						ReloadAnim()
+						Ammo = Ammo + 1
+						StoredAmmo = StoredAmmo - 1
+						UpdateGui()
+					end
+				end
+
+			end
+		else
+			if Ammo > 0 then
+				ReloadAnim()
+			else
+				TacticalReloadAnim()
+			end
+
+			if WeaponData then
+				if (Ammo - (WeaponData.Ammo - StoredAmmo)) < 0 then
+					Ammo = Ammo + StoredAmmo
+					StoredAmmo = 0
+
+				elseif Ammo <= 0 then
+					StoredAmmo = StoredAmmo - (WeaponData.Ammo - Ammo)
+					Ammo = WeaponData.Ammo
+
+				elseif Ammo > 0 and WeaponData.IncludeChamberedBullet then
+					StoredAmmo = StoredAmmo - (WeaponData.Ammo - Ammo) - 1
+					Ammo = WeaponData.Ammo + 1
+
+				elseif Ammo > 0 and not WeaponData.IncludeChamberedBullet then
+					StoredAmmo = StoredAmmo - (WeaponData.Ammo - Ammo)
+					Ammo = WeaponData.Ammo
+				end
 			end
 		end
+
+		if WeaponData.Type == "Gun" and WeaponData.IsLauncher then
+			Evt.RepAmmo:FireServer(WeaponTool,Ammo,StoredAmmo,WeaponData.Jammed)
+		end
+
+		CancelReload = false
+		reloading = false
+		RunCheck()
+		UpdateGui()
 	end
-)
+end
 
-GunshotSoundEvent.OnClientEvent:Connect(
-	function(gunShotSoundID, gunPosition, shooterName, gunName)
-		local distance = (Character.HumanoidRootPart.Position - gunPosition).Magnitude
+function GunFx()
 
-		-- Check distance for gunshot sound (re-play if close enough)
-		if distance <= maxGunshotDistance then
-			local volume = math.max(0, 1 - (distance / maxGunshotDistance))
+	-- Clone and play muzzle sound
+	local Muzzle = WeaponInHand.Handle.Muzzle
 
-			-- Play the gunshot sound
-			local gunShotSound = Instance.new("Sound")
-			gunShotSound.SoundId = gunShotSoundID
-			gunShotSound.Parent = workspace
-			gunShotSound.Volume = volume
-			gunShotSound:Play()
+	if WeaponData.ShootType > 3 then
+		canPump = true
+	end
 
-			local message = "Shot fired by " .. (shooterName or "Unknown") .. " with " .. (gunName or "Unknown") .. "!"
-			print(message)
+	if Suppressor then
+		local newSound = Muzzle.Supressor:Clone()
+		newSound.PlaybackSpeed = newSound.PlaybackSpeed + math.random(-20,20) / 1000
+		newSound.Parent = Muzzle
+		newSound.Name = "Firing"
+		newSound:Play()
+		newSound.PlayOnRemove = true
+		newSound:Destroy()
+	else
+		local newSound = Muzzle.Fire:Clone()
+		newSound.PlaybackSpeed = newSound.PlaybackSpeed + math.random(-20,20) / 1000
+		newSound.Parent = Muzzle
+		newSound.Name = "Firing"
+		newSound:Play()
+		newSound.PlayOnRemove = true
+		newSound:Destroy()
+	end
+
+	if Muzzle:FindFirstChild("Echo") then
+		local newSound = Muzzle.Echo:Clone()
+		newSound.PlaybackSpeed = newSound.PlaybackSpeed + math.random(-20,20) / 1000
+		newSound.Parent = Muzzle
+		newSound.Name = "FireEcho"
+		newSound:Play()
+		newSound.PlayOnRemove = true
+		newSound:Destroy()
+	end
+
+	if WeaponData.FlashChance and math.random(1,10) <= WeaponData.FlashChance and not FlashHider then
+		if Muzzle:FindFirstChild("FlashFX") then
+			Muzzle["FlashFX"].Enabled = true
+			delay(0.1,function()
+				if Muzzle:FindFirstChild("FlashFX") then
+					Muzzle["FlashFX"].Enabled = false
+				end
+			end)
+		end
+		WeaponInHand.Handle.Muzzle["FlashFX[Flash]"]:Emit(10)
+	end
+	WeaponInHand.Handle.Muzzle["Smoke"]:Emit(10)
+
+	if BSpread then
+		BSpread = math.min(WeaponData.MaxSpread * ModTable.MaxSpread, BSpread + WeaponData.AimInaccuracyStepAmount * ModTable.AimInaccuracyStepAmount)
+		RecoilPower =  math.min(WeaponData.MaxRecoilPower * ModTable.MaxRecoilPower, RecoilPower + WeaponData.RecoilPowerStepAmount * ModTable.RecoilPowerStepAmount)
+	end
+
+	generateBullet = generateBullet + 1
+	LastSpreadUpdate = time()
+
+	if Ammo > 0 or not WeaponData.SlideLock then
+		TS:Create( WeaponInHand.Handle.Slide, TweenInfo.new(30/WeaponData.ShootRate,Enum.EasingStyle.Linear,Enum.EasingDirection.InOut,0,true,0), {C0 =  WeaponData.SlideEx:inverse() }):Play()
+	elseif Ammo <= 0 and WeaponData.SlideLock then
+		TS:Create( WeaponInHand.Handle.Slide, TweenInfo.new(30/WeaponData.ShootRate,Enum.EasingStyle.Linear,Enum.EasingDirection.InOut,0,false,0), {C0 =  WeaponData.SlideEx:inverse() }):Play()
+	end
+
+	if WeaponData.ShootType < 4 then
+		WeaponInHand.Handle.Chamber.Smoke:Emit(10)
+	end
+
+	for _, effect in pairs(WeaponInHand.Handle.Chamber:GetChildren()) do
+		if effect.Name == "Shell" then
+			effect:Emit(1)
 		end
 	end
-)
+end
 
-
-
-Evt.LauncherHit.OnClientEvent:Connect(
-	function(Player, Position, HitPart, Normal)
-		if Player ~= Jogador then
-			Hitmarker.Explosion(Position, HitPart, Normal)
+function ShellCheck()
+	if WeaponData.ShellEjectionMod and WeaponData.ShootType < 4 then
+		if Engine.AmmoModels:FindFirstChild(WeaponData.BulletType) then
+			CreateShell(WeaponData.BulletType,WeaponInHand.Handle.Chamber)
+		else
+			CreateShell("Default",WeaponInHand.Handle.Chamber)
 		end
 	end
-)
-Can_Shoot = true
-Mouse.Button1Down:connect(function()
-	if Equipped then
-		MouseHeld = true
-		Can_Shoot = true
+end
 
-		local gun = Character:WaitForChild("S" .. ArmaClone.Name):WaitForChild("Grip")
-		local gunPosition = gun.Position
+function Shoot()
+	if WeaponData and WeaponData.Type == "Gun" and not shooting and not reloading then
 
-		if Settings.Mode ~= "Explosive" then
-			if slideback or not Chambered.Value == true or Emperrado.Value == true then
-				ArmaClone.Handle.Click:Play()
-				return
-			end
-		elseif Settings.Mode == "Explosive" and GLChambered.Value == false or GLAmmo.Value <= 0 then
-			ArmaClone.Handle.Click:Play()
+		if reloading or runKeyDown or SafeMode or CheckingMag then
+			mouse1down = false
 			return
 		end
 
-		if Can_Shoot and not Reloading and not Safe and not Correndo then
-			Can_Shoot = false
-
-			local success, err = pcall(function()
-				if Settings.Mode == "Semi" and Ammo.Value > 0 and Emperrado.Value == false then
-					Evt.Atirar:FireServer(FireRate, Anims, ArmaClient)
-					for _ = 1, Settings.Bullets do
-						coroutine.resume(coroutine.create(function()
-							print("Creating bullet...")
-							Balinha = CreateBullet(BSpread)
-							print("Bullet created:", Balinha, "at position:", Balinha.Position)
-							print("Starting raycast...")
-							CastRay(Balinha)
-							print("Raycast completed")
-						end))
-					end
-
-					local camShake = cameraShaker.new(Enum.RenderPriority.Camera.Value, function(shakeCFrame)
-						CurCamera.CFrame = CurCamera.CFrame * shakeCFrame
-					end)
-
-					camShake:Start()
-					camShake:Shake(cameraShaker.Presets.Firing)
-					recoil()
-					Emperrar()
-					if Emperrado.Value == false then
-						--EjectShells()
-					end
-					Ammo.Value = Ammo.Value - 1
-
-					if BSpread and not DecreasedAimLastShot then
-						BSpread = math.min(Settings.MaxSpread, BSpread + Settings.AimInaccuracyStepAmount)
-						RecoilPower = math.min(Settings.MaxRecoilPower, RecoilPower + Settings.RecoilPowerStepAmount)
-					end
-					DecreasedAimLastShot = not DecreasedAimLastShot
-					if BSpread >= Settings.MaxSpread then
-						OverHeat = true
-					end
-
-					local fireSoundId = gun:WaitForChild("Fire").SoundId
-					local echoSoundId = gun:WaitForChild("Echo").SoundId
-					local suppressorSoundId = gun:WaitForChild("Supressor").SoundId
-
-					game.ReplicatedStorage.GunshotEchoEvent:FireServer(
-						gun.Position,
-						Silencer.Value,
-						echoSoundId,
-						game.Players.LocalPlayer.Name,
-						ArmaClone.Name
-					)
-					game.ReplicatedStorage.GunshotSoundEvent:FireServer(
-						gun.Position,
-						Silencer.Value,
-						fireSoundId,
-						game.Players.LocalPlayer.Name,
-						ArmaClone.Name
-					)
-
-					playGunshotSound(fireSoundId, suppressorSoundId)
-
-					wait(FireRate)
-
-				elseif Settings.Mode == "Auto" then
-					while MouseHeld and Equipped and not Can_Shoot and Emperrado.Value == false and Ammo.Value > 0 do
-						Evt.Atirar:FireServer(FireRate, Anims, ArmaClient)
-						for _ = 1, Settings.Bullets do
-							coroutine.resume(coroutine.create(function()
-								print("Creating bullet...")
-								Balinha = CreateBullet(BSpread)
-								print("Bullet created:", Balinha, "at position:", Balinha.Position)
-								print("Starting raycast...")
-								CastRay(Balinha)
-								print("Raycast completed")
-							end))
-						end
-						recoil()
-						Emperrar()
-						if Emperrado.Value == false then
-							--EjectShells()
-						end
-						Ammo.Value = Ammo.Value - 1
-
-						if BSpread and not DecreasedAimLastShot then
-							BSpread = math.min(Settings.MaxSpread, BSpread + Settings.AimInaccuracyStepAmount)
-							RecoilPower = math.min(Settings.MaxRecoilPower, RecoilPower + Settings.RecoilPowerStepAmount)
-						end
-						DecreasedAimLastShot = not DecreasedAimLastShot
-						if BSpread >= Settings.MaxSpread then
-							OverHeat = true
-						end
-
-						local camShake = cameraShaker.new(Enum.RenderPriority.Camera.Value, function(shakeCFrame)
-							CurCamera.CFrame = CurCamera.CFrame * shakeCFrame
-						end)
-
-						camShake:Start()
-						camShake:Shake(cameraShaker.Presets.FiringAuto)
-
-						local fireSoundId = gun:WaitForChild("Fire").SoundId
-						local echoSoundId = gun:WaitForChild("Echo").SoundId
-						local suppressorSoundId = gun:WaitForChild("Supressor").SoundId
-
-						game.ReplicatedStorage.GunshotEchoEvent:FireServer(
-							gun.Position,
-							Silencer.Value,
-							echoSoundId,
-							game.Players.LocalPlayer.Name,
-							ArmaClone.Name
-						)
-						game.ReplicatedStorage.GunshotSoundEvent:FireServer(
-							gun.Position,
-							Silencer.Value,
-							fireSoundId,
-							game.Players.LocalPlayer.Name,
-							ArmaClone.Name
-						)
-
-						playGunshotSound(fireSoundId, suppressorSoundId)
-
-						wait(FireRate)
-					end
-
-				elseif Settings.Mode == "Burst" and Ammo.Value > 0 then
-					for i = 1, Settings.BurstShot do
-						for _ = 1, Settings.Bullets do
-							if MouseHeld and Ammo.Value > 0 and Emperrado.Value == false then
-								Evt.Atirar:FireServer(FireRate, Anims, ArmaClient)
-								coroutine.resume(coroutine.create(function()
-									Balinha = CreateBullet(BSpread)
-									CastRay(Balinha)
-								end))
-								recoil()
-								local camShake = cameraShaker.new(Enum.RenderPriority.Camera.Value, function(shakeCFrame)
-									CurCamera.CFrame = CurCamera.CFrame * shakeCFrame
-								end)
-
-								camShake:Start()
-								camShake:Shake(cameraShaker.Presets.FiringAuto)
-								Emperrar()
-								if Emperrado.Value == false then
-									--EjectShells()
-								end
-								Ammo.Value = Ammo.Value - 1
-							end
-						end
-
-						if BSpread and not DecreasedAimLastShot then
-							BSpread = math.min(Settings.MaxSpread, BSpread + Settings.AimInaccuracyStepAmount)
-							RecoilPower = math.min(Settings.MaxRecoilPower, RecoilPower + Settings.RecoilPowerStepAmount)
-						end
-						DecreasedAimLastShot = not DecreasedAimLastShot
-						if BSpread >= Settings.MaxSpread then
-							OverHeat = true
-						end
-
-						local fireSoundId = gun:WaitForChild("Fire").SoundId
-						local echoSoundId = gun:WaitForChild("Echo").SoundId
-						local suppressorSoundId = gun:WaitForChild("Supressor").SoundId
-
-						game.ReplicatedStorage.GunshotEchoEvent:FireServer(
-							gun.Position,
-							Silencer.Value,
-							echoSoundId,
-							game.Players.LocalPlayer.Name,
-							ArmaClone.Name
-						)
-						game.ReplicatedStorage.GunshotSoundEvent:FireServer(
-							gun.Position,
-							Silencer.Value,
-							fireSoundId,
-							game.Players.LocalPlayer.Name,
-							ArmaClone.Name
-						)
-
-						playGunshotSound(fireSoundId, suppressorSoundId)
-
-						wait(BurstFireRate)
-					end
-
-				elseif (Settings.Mode == "Bolt-Action" or Settings.Mode == "Pump-Action") and Ammo.Value > 0 and Emperrado.Value == false then
-					Evt.Atirar:FireServer(FireRate, Anims, ArmaClient)
-					for _ = 1, Settings.Bullets do
-						coroutine.resume(coroutine.create(function()
-							Balinha = CreateBullet(BSpread)
-							CastRay(Balinha)
-						end))
-					end
-					recoil()
-					if (Ammo.Value - 1) > 0 then
-						Emperrado.Value = true
-					end
-					if Emperrado == false then
-						--EjectShells()
-					end
-					Ammo.Value = Ammo.Value - 1
-					if BSpread and not DecreasedAimLastShot then
-						BSpread = math.min(Settings.MaxSpread, BSpread + Settings.AimInaccuracyStepAmount)
-						RecoilPower = math.min(Settings.MaxRecoilPower, RecoilPower + Settings.RecoilPowerStepAmount)
-					end
-					DecreasedAimLastShot = not DecreasedAimLastShot
-					if BSpread >= Settings.MaxSpread then
-						OverHeat = true
-					end
-					if (Settings.AutoChamber) then
-						if Aiming and (Settings.ChamberWhileAim) then
-							MouseHeld = false
-							Can_Shoot = false
-							Reloading = true
-							ChamberAnim()
-							Sprint()
-							Can_Shoot = true
-							Reloading = false
-						elseif not Aiming then
-							MouseHeld = false
-							Can_Shoot = false
-							Reloading = true
-							ChamberAnim()
-							Sprint()
-							Can_Shoot = true
-							Reloading = false
-						end
-					end
-
-					local fireSoundId = gun:WaitForChild("Fire").SoundId
-					local echoSoundId = gun:WaitForChild("Echo").SoundId
-					local suppressorSoundId = gun:WaitForChild("Supressor").SoundId
-
-					game.ReplicatedStorage.GunshotEchoEvent:FireServer(
-						gun.Position,
-						Silencer.Value,
-						echoSoundId,
-						game.Players.LocalPlayer.Name,
-						ArmaClone.Name
-					)
-					game.ReplicatedStorage.GunshotSoundEvent:FireServer(
-						gun.Position,
-						Silencer.Value,
-						fireSoundId,
-						game.Players.LocalPlayer.Name,
-						ArmaClone.Name
-					)
-
-					playGunshotSound(fireSoundId, suppressorSoundId)
-
-					wait(FireRate)
-
-				elseif Settings.Mode == "Explosive" and GLAmmo.Value > 0 and GLChambered.Value == true and not Correndo then
-					GLChambered.Value = false
-					GLAmmo.Value = GLAmmo.Value - 1
-					coroutine.resume(coroutine.create(function()
-						Launcher()
-					end))
-				end
-			end)
-
-			-- Reset Can_Shoot regardless of success or failure
-			Can_Shoot = true
-			Update_Gui()
+		if Ammo <= 0 or WeaponData.Jammed then
+			WeaponInHand.Handle.Click:Play()
+			mouse1down = false
+			return
 		end
-	end
-end)
 
-Mouse.Button1Up:connect(
-	function()
-		if Equipped then
-			MouseHeld = false
-		end
-	end
-)
+		mouse1down = true
 
-local function adjustReticleSize(newZoom)
-	if Settings.IsFirstFocalPlane == nil then
-		Settings.IsFirstFocalPlane = false
-	end
-
-	if Settings.IsFirstFocalPlane then
-		local reticleADS2 = ArmaClone:FindFirstChild("ReticleADS2")
-		if reticleADS2 then
-			local surfaceGui = reticleADS2:FindFirstChild("SurfaceGui")
-			if surfaceGui then
-				local overlay = surfaceGui:FindFirstChild("Overlay")
-				if not overlay then
-					overlay = Instance.new("Frame")
-					overlay.Name = "Overlay"
-					overlay.Size = UDim2.new(1, 0, 1, 0)
-					overlay.BackgroundTransparency = 1  -- Start fully transparent
-					overlay.BorderSizePixel = 0
-					overlay.Parent = surfaceGui
+		delay(0, function()
+			if WeaponData and WeaponData.ShootType == 1 then 
+				shooting = true	
+				Evt.Atirar:FireServer(WeaponTool,Suppressor,FlashHider)
+				ShellCheck()
+				for _ =  1, WeaponData.Bullets do
+					Thread:Spawn(CreateBullet)
 				end
+				Ammo = Ammo - 1
+				GunFx()
+				JamChance()
+				UpdateGui()
+				Thread:Spawn(Recoil)
+				wait(60/WeaponData.ShootRate)
+				shooting = false
 
-				local defaultFOV = Settings.ChangeFOV[1]
-				local zoomFactor = (defaultFOV / newZoom)  * 100
+			elseif WeaponData and WeaponData.ShootType == 2 then
+				for i = 1, WeaponData.BurstShot do
+					if shooting or Ammo <= 0 or mouse1down == false or WeaponData.Jammed then
+						break
+					end
+					shooting = true	
+					Evt.Atirar:FireServer(WeaponTool,Suppressor,FlashHider)
+					ShellCheck()
+					for _ =  1, WeaponData.Bullets do
+						Thread:Spawn(CreateBullet)
+					end
+					Ammo = Ammo - 1
+					GunFx()
+					JamChance()
+					UpdateGui()
+					Thread:Spawn(Recoil)
+					wait(60/WeaponData.ShootRate)
+					shooting = false
 
-				-- Scale the overlay to simulate the zoom effect
-				overlay.Size = UDim2.new(zoomFactor, 0, zoomFactor, 0)
-				overlay.Position = UDim2.new(0.5 - 0.5 * zoomFactor, 0, 0.5 - 0.5 * zoomFactor, 0)
+				end
+			elseif WeaponData and WeaponData.ShootType == 3 then
+				while mouse1down do
+					if shooting or Ammo <= 0 or WeaponData.Jammed then
+						break
+					end
+					shooting = true	
+					Evt.Atirar:FireServer(WeaponTool,Suppressor,FlashHider)
+					ShellCheck()
+					for _ =  1, WeaponData.Bullets do
+						Thread:Spawn(CreateBullet)
+					end
+					Ammo = Ammo - 1
+					GunFx()
+					JamChance()
+					UpdateGui()
+					Thread:Spawn(Recoil)
+					wait(60/WeaponData.ShootRate)
+					shooting = false
+
+				end
+			elseif WeaponData and WeaponData.ShootType == 4 or WeaponData and WeaponData.ShootType == 5 then
+				shooting = true	
+				Evt.Atirar:FireServer(WeaponTool,Suppressor,FlashHider)
+				for _ =  1, WeaponData.Bullets do
+					Thread:Spawn(CreateBullet)
+				end
+				Ammo = Ammo - 1
+				GunFx()
+				UpdateGui()
+				Thread:Spawn(Recoil)
+				PumpAnim()
+				RunCheck()
+				shooting = false
+
 			end
+
+			if WeaponData and WeaponData.Type == "Gun" and WeaponData.IsLauncher then
+				Evt.RepAmmo:FireServer(WeaponTool,Ammo,StoredAmmo,WeaponData.Jammed)
+			end
+		end)
+
+	elseif WeaponData and WeaponData.Type == "Melee" and not runKeyDown then
+		if not shooting then
+			shooting = true
+			meleeCast()
+			meleeAttack()
+			RunCheck()
+			shooting = false
 		end
 	end
 end
 
-Mouse.WheelForward:connect(
-	function()
-		if Equipped and not Aiming and not Reloading and not Correndo then
-			-- Existing stance change code remains the same
-			MouseHeld = false
-			if stance == 0 then
-				Safe = true
-				stance = 1
-				Evt.Stance:FireServer(stance, Settings, Anims)
-				StanceUp()
-			elseif stance == -1 then
-				Safe = false
-				stance = 0
-				Evt.Stance:FireServer(stance, Settings, Anims)
-				IdleAnim()
-			elseif stance == -2 then
-				Safe = true
-				stance = -1
-				Evt.Stance:FireServer(stance, Settings, Anims)
-				StanceDown()
-			end
-			Update_Gui()
-		end
-		if Equipped and Aiming then
-			-- Adjust zoom level
-			local currentZoom = Camera.FieldOfView
-			local minZoom = Settings.ChangeFOV[1]
-			local maxZoom = Settings.ChangeFOV[2]
-			local newZoom = math.max(maxZoom, currentZoom - 5)  -- Decrease FOV to zoom in
-			tweenFoV(newZoom, 10)  -- Smooth transition over 10 frames
-			adjustReticleSize(newZoom)  -- Adjust overlay size for FFP scopes
-		end
-	end
-)
+local L_150_ = {}
 
-Mouse.WheelBackward:connect(
-	function()
-		if Equipped and not Aiming and not Reloading and not Correndo then
-			-- Existing stance change code remains the same
-			MouseHeld = false
-			if stance == 0 then
-				Safe = true
-				stance = -1
-				Evt.Stance:FireServer(stance, Settings, Anims)
-				StanceDown()
-			elseif stance == -1 then
-				Safe = true
-				stance = -2
-				Evt.Stance:FireServer(stance, Settings, Anims)
-				Patrol()
-			elseif stance == 1 then
-				Safe = false
-				stance = 0
-				Evt.Stance:FireServer(stance, Settings, Anims)
-				IdleAnim()
-			end
-			Update_Gui()
-		end
-		if Equipped and Aiming then
-			-- Adjust zoom level
-			local currentZoom = Camera.FieldOfView
-			local minZoom = Settings.ChangeFOV[1]
-			local maxZoom = Settings.ChangeFOV[2]
-			local newZoom = math.min(minZoom, currentZoom + 5)  -- Increase FOV to zoom out
-			tweenFoV(newZoom, 10)  -- Smooth transition over 10 frames
-			adjustReticleSize(newZoom)  -- Adjust overlay size for FFP scopes
-		end
-	end
-)
+local LeanSpring = {}
+LeanSpring.cornerPeek = SpringMod.new(0)
+LeanSpring.cornerPeek.d = 1
+LeanSpring.cornerPeek.s = 20
+LeanSpring.peekFactor = math.rad(-15)
+LeanSpring.dirPeek = 0
 
-local function adjustSensitivity(increase)
-	if Equipped and Aiming then
-		if increase and Sens.Value < 100 then
-			Sens.Value = Sens.Value + 5
-		elseif not increase and Sens.Value > 5 then
-			Sens.Value = Sens.Value - 5
+function L_150_.Update()
+
+	LeanSpring.cornerPeek.t = LeanSpring.peekFactor * Virar
+	local NewLeanCF = CFrame.fromAxisAngle(Vector3.new(0, 0, 1), LeanSpring.cornerPeek.p)
+	cam.CFrame = cam.CFrame * NewLeanCF
+end
+
+game:GetService("RunService"):BindToRenderStep("Camera Update", 200, L_150_.Update)
+
+function RunCheck()
+	if runKeyDown then
+		mouse1down = false
+		GunStance = 3
+		Evt.GunStance:FireServer(GunStance,AnimData)
+		SprintAnim()
+	else
+		if aimming then
+			GunStance = 2
+			Evt.GunStance:FireServer(GunStance,AnimData)
+		else
+			GunStance = 0
+			Evt.GunStance:FireServer(GunStance,AnimData)
 		end
-		Update_Gui()
-		uis.MouseDeltaSensitivity = (Sens.Value / 100)
+		IdleAnim()
 	end
 end
 
-uis.InputBegan:Connect(function(input, gameProcessed)
-	if not gameProcessed then
-		if input.KeyCode == Enum.KeyCode.Equals then  -- '+' key
-			adjustSensitivity(true)
-		elseif input.KeyCode == Enum.KeyCode.Minus then  -- '-' key
-			adjustSensitivity(false)
+function Stand()
+	Stance:FireServer(Stances,Virar)
+	TS:Create(char.Humanoid, TweenInfo.new(.3), {CameraOffset = Vector3.new(CameraX,CameraY,char.Humanoid.CameraOffset.Z)} ):Play()
+
+	SE_GUI.MainFrame.Poses.Levantado.Visible = true
+	SE_GUI.MainFrame.Poses.Agaixado.Visible = false
+	SE_GUI.MainFrame.Poses.Deitado.Visible = false
+
+	--if Steady then
+	--	SetWalkSpeed(gameRules.SlowPaceWalkSpeed)
+	--else
+	--	if script.Parent:GetAttribute("Injured") then
+	--		SetWalkSpeed(gameRules.InjuredWalksSpeed)
+	--	else
+	--		SetWalkSpeed(gameRules.NormalWalkSpeed)
+	--	end
+	--end
+	char.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+	IsStanced = false	
+
+end
+
+function Crouch()
+	Stance:FireServer(Stances,Virar)
+	TS:Create(char.Humanoid, TweenInfo.new(.3), {CameraOffset = Vector3.new(CameraX,CameraY,char.Humanoid.CameraOffset.Z)} ):Play()
+
+	SE_GUI.MainFrame.Poses.Levantado.Visible = false
+	SE_GUI.MainFrame.Poses.Agaixado.Visible = true
+	SE_GUI.MainFrame.Poses.Deitado.Visible = false
+
+	--if script.Parent:GetAttribute("Injured") then
+	--	SetWalkSpeed(gameRules.InjuredCrouchWalkSpeed)
+	--else
+	--	SetWalkSpeed(gameRules.CrouchWalkSpeed)
+	--end
+	char.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+	IsStanced = true	
+end
+
+function Prone()
+	Stance:FireServer(Stances,Virar)
+	TS:Create(char.Humanoid, TweenInfo.new(.3), {CameraOffset = Vector3.new(CameraX,CameraY,char.Humanoid.CameraOffset.Z)} ):Play()
+
+	SE_GUI.MainFrame.Poses.Levantado.Visible = false
+	SE_GUI.MainFrame.Poses.Agaixado.Visible = false
+	SE_GUI.MainFrame.Poses.Deitado.Visible = true
+
+	--if ACS_Client:GetAttribute("Surrender") then
+	--	char.Humanoid.WalkSpeed = 0
+	--else
+	--	SetWalkSpeed(gameRules.ProneWalksSpeed)
+	--end
+
+	char.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+	IsStanced = true
+end
+
+function Lean()
+	TS:Create(char.Humanoid, TweenInfo.new(.3), {CameraOffset = Vector3.new(CameraX,CameraY,char.Humanoid.CameraOffset.Z)} ):Play()
+	Stance:FireServer(Stances,Virar)
+
+	if Virar == 0 then
+		SE_GUI.MainFrame.Poses.Esg_Left.Visible = false
+		SE_GUI.MainFrame.Poses.Esg_Right.Visible = false
+	elseif Virar == 1 then
+		SE_GUI.MainFrame.Poses.Esg_Left.Visible = false
+		SE_GUI.MainFrame.Poses.Esg_Right.Visible = true
+	elseif Virar == -1 then
+		SE_GUI.MainFrame.Poses.Esg_Left.Visible = true
+		SE_GUI.MainFrame.Poses.Esg_Right.Visible = false
+	end
+end
+
+----------//Animation Loader\\----------
+function EquipAnim()
+	AnimDebounce = false
+	pcall(function()
+		AnimData.EquipAnim({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+	AnimDebounce = true
+end
+
+
+function IdleAnim()
+	pcall(function()
+		AnimData.IdleAnim({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+	AnimDebounce = true
+end
+
+function SprintAnim()
+	AnimDebounce = false
+	pcall(function()
+		AnimData.SprintAnim({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+end
+
+function HighReady()
+	pcall(function()
+		AnimData.HighReady({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+end
+
+function LowReady()
+	pcall(function()
+		AnimData.LowReady({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+end
+
+function Patrol()
+	pcall(function()
+		AnimData.Patrol({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+end
+
+function ReloadAnim()
+	pcall(function()
+		AnimData.ReloadAnim({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+end
+
+function TacticalReloadAnim()
+	--pcall(function()
+	AnimData.TacticalReloadAnim({
+		RArmWeld,
+		LArmWeld,
+		GunWeld,
+		WeaponInHand,
+		ViewModel,
+	})
+	--end)
+end
+
+function JammedAnim()
+	pcall(function()
+		AnimData.JammedAnim({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+end
+
+function PumpAnim()
+	reloading = true
+	pcall(function()
+		AnimData.PumpAnim({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+	reloading = false
+end
+
+function MagCheckAnim()
+	CheckingMag = true
+	pcall(function()
+		AnimData.MagCheck({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+	CheckingMag = false
+end
+
+function meleeAttack()
+	pcall(function()
+		AnimData.meleeAttack({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+end
+
+function GrenadeReady()
+	pcall(function()
+		AnimData.GrenadeReady({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+end
+
+function GrenadeThrow()
+	pcall(function()
+		AnimData.GrenadeThrow({
+			RArmWeld,
+			LArmWeld,
+			GunWeld,
+			WeaponInHand,
+			ViewModel,
+		})
+	end)
+end
+----------//Animation Loader\\----------
+
+----------//KeyBinds\\----------
+CAS:BindAction("NVG", handleAction, false, gameRules.ToggleNVG)
+
+function BindActions()
+	CAS:BindAction("Run", handleAction, false, gameRules.Sprint)
+
+	CAS:BindAction("Stand", handleAction, false, gameRules.StandUp)
+	CAS:BindAction("Crouch", handleAction, false, gameRules.Crouch)
+
+	CAS:BindAction("ToggleWalk", handleAction, false, gameRules.SlowWalk)
+	CAS:BindAction("LeanLeft", handleAction, false, gameRules.LeanLeft)
+	CAS:BindAction("LeanRight", handleAction, false, gameRules.LeanRight)
+end
+
+function UnBindActions()
+	CAS:UnbindAction("Run")
+
+	CAS:UnbindAction("Stand")
+	CAS:UnbindAction("Crouch")
+
+	CAS:UnbindAction("ToggleWalk")
+	CAS:UnbindAction("LeanLeft")
+	CAS:UnbindAction("LeanRight")
+end
+BindActions()
+----------//KeyBinds\\----------
+
+----------//Gun System\\----------
+local L_199_ = nil
+char.ChildAdded:connect(function(Tool)
+
+	if Tool:IsA("Tool") and not Tool:FindFirstChild("ACS_Settings") then
+		PreviousTool = nil
+		canDrop = false
+	end
+
+	if Tool:IsA('Tool') and Humanoid.Health > 0 and not ToolEquip and Tool:FindFirstChild("ACS_Settings") ~= nil and (require(Tool.ACS_Settings).Type == 'Gun' or require(Tool.ACS_Settings).Type == 'Melee' or require(Tool.ACS_Settings).Type == 'Grenade') then
+		local L_370_ = true
+		if char:WaitForChild("Humanoid").Sit then
+			if char.Humanoid.SeatPart:IsA("VehicleSeat") and not gameRules.EquipInVehicleSeat then 
+				L_370_ = false
+			elseif char.Humanoid.SeatPart:IsA("Seat") and not gameRules.EquipInSeat then
+				L_370_ = false
+			end
+		end
+
+		if L_370_ then
+			L_199_ = Tool
+			if not ToolEquip then
+				--pcall(function()
+				setup(Tool)
+				--end)
+
+			elseif ToolEquip then
+				pcall(function()
+					unset()
+					setup(Tool)
+				end)
+			end;
+		end;
+	end
+
+end)
+
+char.ChildRemoved:connect(function(Tool)
+	if Tool == WeaponTool then
+		if ToolEquip then
+			unset()
 		end
 	end
 end)
 
-Mouse.Button2Down:connect(
-	function()
-		if
-			Equipped and stance > -2 and not Aiming and (Camera.Focus.p - Camera.CFrame.p).magnitude < 1 and
-			not Correndo and
-			not Reloading
-		then
-			if NVG and ArmaClone.AimPart:FindFirstChild("NVAim") ~= nil and Bipod then
-			else
-				if Safe then
-					Safe = false
-					IdleAnim()
-					Update_Gui()
-				end
-				stance = 2
-				Evt.Stance:FireServer(stance, Settings, Anims, ArmaClient)
-				Aiming = true
-				game:GetService("UserInputService").MouseDeltaSensitivity = (Sens.Value / 100)
-				ArmaClone.Handle.AimDown:Play()
+Humanoid.Running:Connect(function(speed)
+	charspeed = speed
+	if speed > 0.1 then
+		running = true
+	else
+		running = false
+	end
+end)
 
-				if Settings.Mode == "Explosive" then
-					AimPartMode = 3
-					tweenFoV(Settings.ChangeFOV[3], 120)
-				else
-					AimPartMode = 1
-					tweenFoV(70, 120)
-				end
-
-				if not NVG or ArmaClone.AimPart:FindFirstChild("NVAim") == nil then
-					if ArmaClone:FindFirstChild("AimPart2") ~= nil then
-						if AimPartMode == 1 then
-							tweenFoV(Settings.ChangeFOV[1], 120)
-							if Settings.FocusOnSight then
-								--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.75),{ImageTransparency = 0}):Play()
-								TS:Create(
-									game.Lighting.DepthOfField,
-									TweenInfo.new(0.3),
-									{FocusDistance = Settings.Focus1Distance}
-								):Play()
-							else
-								--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.3),{ImageTransparency = 1}):Play()
-								TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
-							end
-							if Settings.adsMesh1 then
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "REG" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "HideADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0.11}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS2" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0.4}):Play()
-											BlurTween:Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("ImageLabel") then
-										if v.Name == "Shadow" then
-											TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 0}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "GlassSight" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0.11}):Play()
-										end
-									end
-								end
-							else
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "REG" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "HideADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS2" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-											screenx = v:WaitForChild("SurfaceGui")
-											screenx.AlwaysOnTop = false
-											UnBlurTween:Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "GlassSight" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("ImageLabel") then
-										if v.Name == "Shadow" then
-											TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 1}):Play()
-										end
-									end
-								end
-							end
-						elseif AimPartMode == 2 then
-							tweenFoV(Settings.ChangeFOV[2], 120)
-							if Settings.FocusOnSight2 then
-								--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.75),{ImageTransparency = 0}):Play()
-								TS:Create(
-									game.Lighting.DepthOfField,
-									TweenInfo.new(0.3),
-									{FocusDistance = Settings.Focus2Distance}
-								):Play()
-							else
-								--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.3),{ImageTransparency = 1}):Play()
-								TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
-							end
-							if Settings.adsMesh2 then
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "REG" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "HideADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0.11}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS2" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0.4}):Play()
-											screenx = v:WaitForChild("SurfaceGui")
-											screenx.AlwaysOnTop = false
-
-											BlurTween:Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "GlassSight" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0.11}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("ImageLabel") then
-										if v.Name == "Shadow" then
-											TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 0}):Play()
-										end
-									end
-								end
-							else
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "REG" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "HideADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS2" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-											screenx = v:WaitForChild("SurfaceGui")
-											screenx.AlwaysOnTop = false
-											UnBlurTween:Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "GlassSight" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("ImageLabel") then
-										if v.Name == "Shadow" then
-											TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 1}):Play()
-										end
-									end
-								end
-							end
-						end
-					else
-						if AimPartMode == 1 then
-							tweenFoV(Settings.ChangeFOV[1], 120)
-							if Settings.FocusOnSight then
-								--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.75),{ImageTransparency = 0}):Play()
-								TS:Create(
-									game.Lighting.DepthOfField,
-									TweenInfo.new(0.3),
-									{FocusDistance = Settings.Focus1Distance}
-								):Play()
-							else
-								--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.3),{ImageTransparency = 1}):Play()
-								TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
-							end
-							if Settings.adsMesh1 then
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "REG" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "HideADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0.11}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS2" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0.4}):Play()
-											screenx = v:WaitForChild("SurfaceGui")
-											screenx.AlwaysOnTop = false
-
-											BlurTween:Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "GlassSight" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0.11}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("ImageLabel") then
-										if v.Name == "Shadow" then
-											TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 0}):Play()
-										end
-									end
-								end
-							else
-								if Settings.adsMesh1 then
-									for _, v in pairs(ArmaClone:GetDescendants()) do
-										if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-											if v.Name == "REG" then
-												TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-											end
-										end
-									end
-									for _, v in pairs(ArmaClone:GetDescendants()) do
-										if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-											if v.Name == "ADS" then
-												TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-											end
-										end
-									end
-
-									for _, v in pairs(ArmaClone:GetDescendants()) do
-										if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-											if v.Name == "HideADS" then
-												TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-											end
-										end
-									end
-
-									for _, v in pairs(ArmaClone:GetDescendants()) do
-										if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-											if v.Name == "ADS2" then
-												TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-												screenx = v:WaitForChild("SurfaceGui")
-												screenx.AlwaysOnTop = false
-												UnBlurTween:Play()
-											end
-										end
-									end
-
-									for _, v in pairs(ArmaClone:GetDescendants()) do
-										if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-											if v.Name == "GlassSight" then
-												TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-											end
-										end
-									end
-
-									for _, v in pairs(ArmaClone:GetDescendants()) do
-										if v:IsA("ImageLabel") then
-											if v.Name == "Shadow" then
-												TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 1}):Play()
-											end
-										end
-									end
-								end
-							end
-						elseif AimPartMode == 2 then
-							tweenFoV(Settings.ChangeFOV[2], 120)
-							if Settings.FocusOnSight2 then
-								--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.75),{ImageTransparency = 0}):Play()
-								TS:Create(
-									game.Lighting.DepthOfField,
-									TweenInfo.new(0.3),
-									{FocusDistance = Settings.Focus2Distance}
-								):Play()
-							else
-								--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.3),{ImageTransparency = 1}):Play()
-								TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
-							end
-							if Settings.adsMesh2 then
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "REG" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "HideADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0.11}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS2" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0.4}):Play()
-											screenx = v:WaitForChild("SurfaceGui")
-											screenx.AlwaysOnTop = false
-
-											BlurTween:Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "GlassSight" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0.11}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("ImageLabel") then
-										if v.Name == "Shadow" then
-											TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 0}):Play()
-										end
-									end
-								end
-							else
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "REG" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "HideADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS2" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-											screenx = v:WaitForChild("SurfaceGui")
-											screenx.AlwaysOnTop = false
-											UnBlurTween:Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "GlassSight" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("ImageLabel") then
-										if v.Name == "Shadow" then
-											TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 1}):Play()
-										end
-									end
-								end
-							end
-						end
-					end
-				else
-					tweenFoV(70, 120)
-					TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
-					TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.3), {ImageTransparency = 1}):Play()
-				end
-			end
-		elseif Aiming and Equipped then
-			stance = 0
-			Evt.Stance:FireServer(stance, Settings, Anims, ArmaClient)
-			game:GetService("UserInputService").MouseDeltaSensitivity = 1
-			ArmaClone.Handle.AimUp:Play()
-			tweenFoV(70, 120)
-			Aiming = false
-			if Settings.adsMesh1 or Settings.adsMesh2 then
-				for _, v in pairs(ArmaClone:GetDescendants()) do
-					if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-						if v.Name == "REG" then
-							TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-						end
-					end
-				end
-				for _, v in pairs(ArmaClone:GetDescendants()) do
-					if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-						if v.Name == "ADS" then
-							TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-						end
-					end
-				end
-
-				for _, v in pairs(ArmaClone:GetDescendants()) do
-					if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-						if v.Name == "HideADS" then
-							TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-						end
-					end
-				end
-
-				for _, v in pairs(ArmaClone:GetDescendants()) do
-					if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-						if v.Name == "ADS2" then
-							TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-							screenx = v:WaitForChild("SurfaceGui")
-							screenx.AlwaysOnTop = false
-							UnBlurTween:Play()
-						end
-					end
-				end
-
-				for _, v in pairs(ArmaClone:GetDescendants()) do
-					if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-						if v.Name == "GlassSight" then
-							TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-						end
-					end
-				end
-
-				for _, v in pairs(ArmaClone:GetDescendants()) do
-					if v:IsA("ImageLabel") then
-						if v.Name == "Shadow" then
-							TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 1}):Play()
-						end
-					end
-				end
-			end
-			TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.3), {ImageTransparency = 1}):Play()
-			TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
+Humanoid.Swimming:Connect(function(speed)
+	if Swimming then
+		charspeed = speed
+		if speed > 0.1 then
+			running = true
+		else
+			running = false
 		end
 	end
-)
+end)
 
-Mouse.Button2Up:connect(
-	function()
-		if
-			not Equipped and stance > -2 and not Aiming and (Camera.Focus.p - Camera.CFrame.p).magnitude < 1 and
-			not Correndo
-		then
-			if NVG and ArmaClone.AimPart:FindFirstChild("NVAim") ~= nil and Bipod then
-			else
-				if Safe then
-					Safe = false
-					IdleAnim()
-					Update_Gui()
-				end
-				stance = 2
-				Evt.Stance:FireServer(stance, Settings, Anims)
-				Aiming = false
-				game:GetService("UserInputService").MouseDeltaSensitivity = (Sens.Value / 100)
-				ArmaClone.Handle.AimDown:Play()
+Humanoid.Died:Connect(function(speed)
+	TS:Create(char.Humanoid, TweenInfo.new(1), {CameraOffset = Vector3.new(0,0,0)} ):Play()
+	ChangeStance = false
+	Stand()
+	Stances = 0
+	Virar = 0
+	CameraX = 0
+	CameraY = 0
+	Lean()
+	Equipped = 0
+	unset()
+	Evt.NVG:Fire(false)
+end)
 
-				if not NVG or ArmaClone.AimPart:FindFirstChild("NVAim") == nil then
-					if ArmaClone:FindFirstChild("AimPart2") ~= nil then
-						if AimPartMode == 1 then
-							tweenFoV(Settings.ChangeFOV[1], 120)
-							if Settings.FocusOnSight then
-								TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.75), {ImageTransparency = 0}):Play()
-							else
-								TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.3), {ImageTransparency = 1}):Play()
-							end
+Humanoid.Seated:Connect(function(IsSeated, Seat)
 
-							if Settings.adsMesh1 then
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "REG" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "HideADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS2" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-											screenx = v:WaitForChild("SurfaceGui")
-											screenx.AlwaysOnTop = false
-											UnBlurTween:Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "GlassSight" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("ImageLabel") then
-										if v.Name == "Shadow" then
-											TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 1}):Play()
-										end
-									end
-								end
-							end
-						elseif AimPartMode == 2 then
-							tweenFoV(Settings.ChangeFOV[2], 120)
-							if Settings.FocusOnSight2 then
-								TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.75), {ImageTransparency = 0}):Play()
-							else
-								TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.3), {ImageTransparency = 1}):Play()
-							end
-
-							if Settings.adsMesh2 then
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "REG" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "HideADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS2" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-											screenx = v:WaitForChild("SurfaceGui")
-											screenx.AlwaysOnTop = false
-											UnBlurTween:Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "GlassSight" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("ImageLabel") then
-										if v.Name == "Shadow" then
-											TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 1}):Play()
-										end
-									end
-								end
-							end
-						end
-					else
-						if AimPartMode == 1 then
-							tweenFoV(Settings.ChangeFOV[1], 120)
-							if Settings.FocusOnSight then
-								TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.75), {ImageTransparency = 0}):Play()
-							else
-								TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.3), {ImageTransparency = 1}):Play()
-							end
-
-							if Settings.adsMesh1 then
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "REG" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "HideADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end								
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS2" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-											screenx = v:WaitForChild("SurfaceGui")
-											screenx.AlwaysOnTop = false
-											UnBlurTween:Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "GlassSight" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("ImageLabel") then
-										if v.Name == "Shadow" then
-											TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 1}):Play()
-										end
-									end
-								end
-							end
-						elseif AimPartMode == 2 then
-							tweenFoV(Settings.ChangeFOV[2], 120)
-							if Settings.FocusOnSight2 then
-								TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.75), {ImageTransparency = 0}):Play()
-							else
-								TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.3), {ImageTransparency = 1}):Play()
-							end
-							if Settings.adsMesh2 then
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "REG" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "HideADS" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "ADS2" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-											screenx = v:WaitForChild("SurfaceGui")
-											screenx.AlwaysOnTop = false
-											UnBlurTween:Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-										if v.Name == "GlassSight" then
-											TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-										end
-									end
-								end
-
-								for _, v in pairs(ArmaClone:GetDescendants()) do
-									if v:IsA("ImageLabel") then
-										if v.Name == "Shadow" then
-											TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 1}):Play()
-										end
-									end
-								end
-							end
-						end
-					end
-				else
-					tweenFoV(70, 120)
-					TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.3), {ImageTransparency = 1}):Play()
-				end
-			end
-		elseif Aiming and Equipped then
-			stance = 0
-			Evt.Stance:FireServer(stance, Settings, Anims)
-			game:GetService("UserInputService").MouseDeltaSensitivity = 1
-			ArmaClone.Handle.AimUp:Play()
-			tweenFoV(70, 120)
-			Aiming = false
-
-			if Settings.adsMesh1 or Settings.adsMesh2 then
-				for _, v in pairs(ArmaClone:GetDescendants()) do
-					if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-						if v.Name == "REG" then
-							TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-						end
-					end
-				end
-				for _, v in pairs(ArmaClone:GetDescendants()) do
-					if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-						if v.Name == "ADS" then
-							TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-						end
-					end
-				end
-
-				for _, v in pairs(ArmaClone:GetDescendants()) do
-					if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-						if v.Name == "HideADS" then
-							TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-						end
-					end
-				end
-
-				for _, v in pairs(ArmaClone:GetDescendants()) do
-					if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-						if v.Name == "ADS2" then
-							TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-							screenx = v:WaitForChild("SurfaceGui")
-							screenx.AlwaysOnTop = false
-							UnBlurTween:Play()
-						end
-					end
-				end
-
-				for _, v in pairs(ArmaClone:GetDescendants()) do
-					if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-						if v.Name == "GlassSight" then
-							TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-						end
-					end
-				end
-
-				for _, v in pairs(ArmaClone:GetDescendants()) do
-					if v:IsA("ImageLabel") then
-						if v.Name == "Shadow" then
-							TS:Create(v, TweenInfo.new(0.4), {ImageTransparency = 1}):Play()
-						end
-					end
-				end
-			end
-
-			TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.3), {ImageTransparency = 1}):Play()
-		end
-	end
-)
-
-Human.Died:connect(
-	function()
-		ResetWorkspace()
-		Human:UnequipTools()
-		UnBlurTween:Play()
-		Evt.Rappel.CutEvent:FireServer()
-		Unset()
-	end
-)
-
-function onStateChanged(_, state)
-	if state == Enum.HumanoidStateType.Swimming then
-		Nadando = true
-		if Equipped then
-			Unset()
+	if IsSeated and Seat and (Seat:IsA("VehicleSeat") or Seat:IsA("Seat")) then
+		if not gameRules.EquipInVehicleSeat then
+			unset()
 			Humanoid:UnequipTools()
-			UnBlurTween:Play()
+		end
+		CanLean = false
+		plr.CameraMaxZoomDistance = gameRules.VehicleMaxZoom
+
+		if gameRules.DisableInSeat then
+			UnBindActions()
 		end
 	else
-		Nadando = false
+		if gameRules.DisableInSeat then
+			BindActions()
+		end
+		Proned = false
+		Crouched = false
+		plr.CameraMaxZoomDistance = game.StarterPlayer.CameraMaxZoomDistance
 	end
 
-	if ServerConfig.EnableFallDamage then
+	if IsSeated  then
+		Sentado = true
+		Stances = 0
+		Virar = 0
+		CameraX = 0
+		CameraY = 0
+		Stand()
+		Lean()
+	else
+		Sentado = false
+		CanLean = true
+	end
+end)
+
+Humanoid.Changed:connect(function(Property)
+	if not  gameRules.AntiBunnyHop then return; end;
+	if Property == "Jump" and Humanoid.Sit == true and Humanoid.SeatPart ~= nil then
+		Humanoid.Sit = false
+	elseif Property == "Jump" and Humanoid.Sit == false then
+		if JumpDelay then
+			Humanoid.Jump = false
+			return false
+		end
+		JumpDelay = true
+		delay(0, function()
+			wait(gameRules.JumpCoolDown)
+			JumpDelay = false
+		end)
+	end
+end)
+
+Humanoid.StateChanged:connect(function(Old,state)
+	if state == Enum.HumanoidStateType.Swimming then
+		Swimming = true
+		Stances = 0
+		Virar = 0
+		CameraX = 0
+		CameraY = 0
+		Stand()
+		Lean()
+	else
+		Swimming = false
+	end
+
+	if gameRules.EnableFallDamage then
 		if state == Enum.HumanoidStateType.Freefall and not falling then
 			falling = true
 			local curVel = 0
@@ -3688,1295 +2689,480 @@ function onStateChanged(_, state)
 			while falling do
 				curVel = HumanoidRootPart.Velocity.magnitude
 				peak = peak + 1
-				wait()
+				Thread:Wait()
 			end
-			local damage = (curVel - (ServerConfig.MaxVelocity)) * ServerConfig.DamageMult
+			local damage = (curVel - (gameRules.MaxVelocity)) * gameRules.DamageMult
 			if damage > 5 and peak > 20 then
-				local hurtSound = PastaFX.FallDamage:Clone()
-				hurtSound.Parent = Player.PlayerGui
-				hurtSound.Volume = damage / Human.MaxHealth
+				local SKP_02 = SKP_01.."-"..plr.UserId
+
+				cameraspring:accelerate(Vector3.new(-damage/20, 0, math.random(-damage, damage)/5))
+				Spring:accelerate(Vector3.new( math.random(-damage, damage)/5, damage/5,0))
+
+				local hurtSound = PastaFx.FallDamage:Clone()
+				hurtSound.Parent = plr.PlayerGui
+				hurtSound.Volume = damage/Humanoid.MaxHealth
 				hurtSound:Play()
-				Debris:AddItem(hurtSound, hurtSound.TimeLength)
-				Evt.Damage:FireServer(Human, damage, 0, 0)
+				Debris:AddItem(hurtSound,hurtSound.TimeLength)
+
+				Evt.Damage:InvokeServer(nil, nil, nil, nil, nil, nil, true, damage, SKP_02)
+
 			end
 		elseif state == Enum.HumanoidStateType.Landed or state == Enum.HumanoidStateType.Dead then
 			falling = false
+			Spring:accelerate(Vector3.new(0, 2.5, 0))
 		end
 	end
+
+end)
+
+local function tweenFoV(goal, frames)
+	local startFov = cam.FieldOfView
+	local renderStep = game:GetService("RunService").RenderStepped
+
+	coroutine.wrap(function()
+		for i = 1, frames do
+			cam.FieldOfView = startFov + (goal - startFov) * (i / frames)
+			renderStep:Wait()
+		end
+	end)()
 end
 
-Evt.ServerBullet.OnClientEvent:Connect(function(SKP_arg1,SKP_arg3,SKP_arg4,SKP_arg5,SKP_arg6,SKP_arg7,SKP_arg8,SKP_arg9,SKP_arg10,SKP_arg11,SKP_arg12)
-	if SKP_arg1 ~= Jogador and SKP_arg1.Character then 
-		local SKP_01 = SKP_arg3
-		local SKP_02 = Instance.new("Part")
-		SKP_02.Parent = workspace.ACS_WorkSpace.Server
-		SKP_02.Name = SKP_arg1.Name..'_Bullet'
-		Debris:AddItem(SKP_02, 5)
-		SKP_02.Shape = "Ball"
-		SKP_02.Size = Vector3.new(1, 1, 1)
-		SKP_02.CanCollide = false
-		SKP_02.CFrame = SKP_01
-		SKP_02.Transparency = 1
-
-		local SKP_03 = SKP_02:GetMass()
-		local SKP_04 = Instance.new('BodyForce', SKP_02)
-
-		SKP_04.Force = Vector3.new(0,SKP_03 * (196.2) - SKP_arg5 * (196.2), 0)
-		SKP_02.Velocity = SKP_arg7 * SKP_arg6
-
-		local SKP_05 = Instance.new('Attachment', SKP_02)
-		SKP_05.Position = Vector3.new(0.1, 0, 0)
-		local SKP_06 = Instance.new('Attachment', SKP_02)
-		SKP_06.Position = Vector3.new(-0.1, 0, 0)
-
-
-		if SKP_arg4 then
-			local SKP_07 = Instance.new('Trail', SKP_02)
-			SKP_07.Attachment0 = SKP_05
-			SKP_07.Attachment1 = SKP_06
-			SKP_07.Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 0, 0);
-				NumberSequenceKeypoint.new(1, 1);
-			}
-			)
-			SKP_07.WidthScale = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 2, 0);
-				NumberSequenceKeypoint.new(1, 0);
-			}
-			)
-			SKP_07.Texture = "rbxassetid://232918622"
-			SKP_07.TextureMode = Enum.TextureMode.Stretch
-			SKP_07.LightEmission = 1
-			SKP_07.Lifetime = 0.2
-			SKP_07.FaceCamera = true
-			SKP_07.Color = ColorSequence.new(SKP_arg8)
-		end
-
-		if SKP_arg10 then
-			local SKP_08 = Instance.new("BillboardGui", SKP_02)
-			SKP_08.Adornee = SKP_02
-			local SKP_09 = math.random(375, 475)/10
-			SKP_08.Size = UDim2.new(SKP_09, 0, SKP_09, 0)
-			SKP_08.LightInfluence = 0
-			local SKP_010 = Instance.new("ImageLabel", SKP_08)
-			SKP_010.BackgroundTransparency = 1
-			SKP_010.Size = UDim2.new(1, 0, 1, 0)
-			SKP_010.Position = UDim2.new(0, 0, 0, 0)
-			SKP_010.Image = "http://www.roblox.com/asset/?id=1047066405"
-			SKP_010.ImageColor3 = SKP_arg11
-
-			SKP_010.ImageTransparency = math.random(2, 5)/15
-
-			if SKP_02:FindFirstChild("BillboardGui") ~= nil then
-				SKP_02.BillboardGui.Enabled = true
+mouse.WheelBackward:Connect(function()
+	if ToolEquip and not CheckingMag and aimming and AnimDebounce and WeaponData and WeaponData.Type == "Gun" then
+		if AimPartMode == 1 and ModTable.ZoomValue then
+			ModTable.ZoomValue = ModTable.ZoomValue + 5
+			if WeaponData.Zoom2 > 0 then
+				ModTable.ZoomValue = math.min(WeaponData.Zoom2, ModTable.ZoomValue)
+			else
+				ModTable.ZoomValue = math.min(70, ModTable.ZoomValue)
+			end
+		elseif AimPartMode == 2 and ModTable.Zoom2Value then
+			ModTable.Zoom2Value = ModTable.Zoom2Value + 5
+			if SightData.WeaponData.Zoom2 > 0 then
+				ModTable.Zoom2Value = math.min(WeaponData.Zoom2, ModTable.Zoom2Value)
+			else
+				ModTable.Zoom2Value = math.min(70, ModTable.Zoom2Value)
 			end
 		end
+	end
 
-		local SKP_011 = {SKP_arg1.Character,SKP_02,workspace.ACS_WorkSpace}
-		while true do
-			RS.Heartbeat:wait()
-			local SKP_012 = Ray.new(SKP_02.Position, SKP_02.CFrame.LookVector*25)
-			local SKP_013, SKP_014 = workspace:FindPartOnRayWithIgnoreList(SKP_012, SKP_011, false, true)
-			if SKP_013 then
-				game.Debris:AddItem(SKP_02,0)
-				break
-			end
+	if ToolEquip and not aimming and not CheckingMag and not reloading and not runKeyDown and AnimDebounce and WeaponData and WeaponData.Type == "Gun" then
+		mouse1down = false
+		if GunStance == 0 then
+			SafeMode = true
+			GunStance = -1
+			UpdateGui()
+			Evt.GunStance:FireServer(GunStance,AnimData)
+			LowReady()
+		elseif GunStance == -1 then
+			SafeMode = true
+			GunStance = -2
+			UpdateGui()
+			Evt.GunStance:FireServer(GunStance,AnimData)
+			Patrol()
+		elseif GunStance == 1 then
+			SafeMode = false
+			GunStance = 0
+			UpdateGui()
+			Evt.GunStance:FireServer(GunStance,AnimData)
+			IdleAnim()
 		end
-		game.Debris:AddItem(SKP_02,0)
-		return SKP_02
 	end
 end)
 
 
+mouse.WheelForward:Connect(function()
+	if ToolEquip and not CheckingMag and aimming and AnimDebounce and WeaponData and WeaponData.Type == "Gun" then
+		if AimPartMode == 1 and ModTable.ZoomValue then
+			ModTable.ZoomValue = ModTable.ZoomValue - 5
+			if WeaponData.Zoom > 0 then
+				ModTable.ZoomValue = math.max(WeaponData.Zoom, ModTable.ZoomValue)
+			else
+				ModTable.ZoomValue = math.max(30, ModTable.ZoomValue)
+			end
+		elseif AimPartMode == 2 and ModTable.Zoom2Value then
+			ModTable.Zoom2Value = ModTable.Zoom2Value - 5
+			if WeaponData.Zoom > 0 then
+				ModTable.Zoom2Value = math.max(WeaponData.Zoom, ModTable.Zoom2Value)
+			else
+				ModTable.Zoom2Value = math.max(30, ModTable.Zoom2Value)
+			end
+		end
+	end
+	
+	if ToolEquip and not aimming and not CheckingMag and not reloading and not runKeyDown and AnimDebounce and WeaponData and WeaponData.Type == "Gun" then
+		mouse1down = false
+		if GunStance == 0 then
+			SafeMode = true
+			GunStance = 1
+			UpdateGui()
+			Evt.GunStance:FireServer(GunStance,AnimData)
+			HighReady()
+		elseif GunStance == -1 then
+			SafeMode = false
+			GunStance = 0
+			UpdateGui()
+			Evt.GunStance:FireServer(GunStance,AnimData)
+			IdleAnim()
+		elseif GunStance == -2 then
+			SafeMode = true
+			GunStance = -1
+			UpdateGui()
+			Evt.GunStance:FireServer(GunStance,AnimData)
+			LowReady()
+		end
+	end
+end)
 
-Human.StateChanged:connect(onStateChanged)
+script.Parent:GetAttributeChangedSignal("Injured"):Connect(function()
+	local valor = script.Parent:GetAttribute("Injured")
 
-Evt.ACS_AI.AIBullet.OnClientEvent:Connect(
-	function(
-		SKP_arg1,
-		SKP_arg3,
-		SKP_arg4,
-		SKP_arg5,
-		SKP_arg6,
-		SKP_arg7,
-		SKP_arg8,
-		SKP_arg9,
-		SKP_arg10,
-		SKP_arg11,
-		SKP_arg12)
-		if SKP_arg1 ~= Jogador then
-			local SKP_01 = SKP_arg3
-			local SKP_02 = Instance.new("Part")
-			SKP_02.Parent = workspace.ACS_WorkSpace.Server
-			SKP_02.Name = "AI_Bullet"
-			Debris:AddItem(SKP_02, 5)
-			SKP_02.Shape = "Ball"
-			SKP_02.Size = Vector3.new(1, 1, 1)
-			SKP_02.CanCollide = false
-			SKP_02.CFrame = SKP_01
-			SKP_02.Transparency = 1
+	if valor and runKeyDown then
+		runKeyDown 	= false
+		Stand()
+		if not CheckingMag and not reloading and WeaponData and WeaponData.Type ~= "Grenade" and (GunStance == 0 or GunStance == 2 or GunStance == 3) then
+			GunStance = 0
+			Evt.GunStance:FireServer(GunStance,AnimData)
+			IdleAnim()
+		end
+	end
 
-			local SKP_03 = SKP_02:GetMass()
-			local SKP_04 = Instance.new("BodyForce", SKP_02)
+	if Stances == 0 then
+		Stand()
+	elseif Stances == 1 then
+		Crouch()
+	end
 
-			SKP_04.Force = Vector3.new(0, SKP_03 * (196.2) - SKP_arg5 * (196.2), 0)
-			SKP_02.Velocity = SKP_arg7 * SKP_arg6
+end)
 
-			local SKP_05 = Instance.new("Attachment", SKP_02)
-			SKP_05.Position = Vector3.new(0.1, 0, 0)
-			local SKP_06 = Instance.new("Attachment", SKP_02)
-			SKP_06.Position = Vector3.new(-0.1, 0, 0)
+----------//Gun System\\----------
 
-			if SKP_arg4 then
-				local SKP_07 = Instance.new("Trail", SKP_02)
-				SKP_07.Attachment0 = SKP_05
-				SKP_07.Attachment1 = SKP_06
-				SKP_07.Transparency =
-					NumberSequence.new(
-						{
-							NumberSequenceKeypoint.new(0, 0, 0),
-							NumberSequenceKeypoint.new(1, 1)
-						}
+----------//Collapse\\----------
+ACS_Client:GetAttributeChangedSignal("Collapsed"):Connect(function()
+	if not ACS_Client:GetAttribute("Collapsed") then return; end;
+	runKeyDown 	= true
+	Stand()
+	Stances = 0
+	Virar = 0
+	CameraX = 0
+	CameraY = 0
+	Lean()
+end)
+----------//Collapse\\----------
+
+----------//Health HUD\\----------
+BloodScreen:Play()
+BloodScreenLowHP:Play()
+Humanoid.HealthChanged:Connect(function(Health)
+	SE_GUI.Efeitos.Health.ImageTransparency = ((Health - (Humanoid.MaxHealth/2))/(Humanoid.MaxHealth/2))
+	SE_GUI.Efeitos.LowHealth.ImageTransparency = (Health /(Humanoid.MaxHealth/2))
+end)
+----------//Health HUD\\----------
+
+----------//Render Functions\\----------
+Run.RenderStepped:Connect(function(step)
+	HeadMovement()
+	renderGunRecoil()
+	renderCam()
+
+	if ViewModel and LArm and RArm and WeaponInHand then --Check if the weapon and arms are loaded
+		local mouseDelta = User:GetMouseDelta()
+		SwaySpring:accelerate(Vector3.new(mouseDelta.x/60, mouseDelta.y/60, 0))
+
+		local swayVec = SwaySpring.p 
+		local TSWAY = swayVec.z
+		local XSSWY
+		if aimming then
+			XSSWY = swayVec.X
+		else
+			XSSWY = -swayVec.X
+		end
+		local YSSWY = swayVec.Y
+		SwaySpring.p = SwaySpring.p * damp;
+		local Sway = CFrame.Angles(YSSWY, XSSWY, XSSWY)
+
+		if BipodAtt then
+			local BipodRay = Ray.new(UnderBarrelAtt.Main.Position, Vector3.new(0, -1.75, 0))
+			local BipodHit, BipodPos, BipodNorm = workspace:FindPartOnRayWithIgnoreList(BipodRay, Ignore_Model, false, true)
+
+			if BipodHit then
+				CanBipod = true
+				if CanBipod and BipodActive and not runKeyDown and (GunStance == 0 or GunStance == 2) then
+					TS:Create(
+						SE_GUI.GunHUD.Att.Bipod,
+						TweenInfo.new(0.1, Enum.EasingStyle.Linear),
+						{ImageColor3 = Color3.fromRGB(255, 255, 255), ImageTransparency = 0.123}
+					):Play()
+					if not aimming then
+						BipodCF = BipodCF:Lerp(
+							CFrame.new(0, ((UnderBarrelAtt.Main.Position - BipodPos).magnitude - 1) * (-1.5), 0),
+							0.2
+						)
+					else
+						BipodCF = BipodCF:Lerp(CFrame.new(), 0.2)
+					end
+				else
+					BipodActive = false
+					BipodCF = BipodCF:Lerp(CFrame.new(), 0.2)
+					TS:Create(
+						SE_GUI.GunHUD.Att.Bipod,
+						TweenInfo.new(0.1, Enum.EasingStyle.Linear),
+						{ImageColor3 = Color3.fromRGB(255, 255, 0), ImageTransparency = 0.5}
+					):Play()
+				end
+			else
+				BipodActive = false
+				CanBipod = false
+				BipodCF = BipodCF:Lerp(CFrame.new(), 0.2)
+				TS:Create(
+					SE_GUI.GunHUD.Att.Bipod,
+					TweenInfo.new(0.1, Enum.EasingStyle.Linear),
+					{ImageColor3 = Color3.fromRGB(255, 0, 0), ImageTransparency = 0.5}
+				):Play()
+			end
+		end
+
+		AnimPart.CFrame = cam.CFrame * NearZ * BipodCF * maincf * gunbobcf * aimcf
+
+		if not AnimData.GunModelFixed then
+			WeaponInHand:SetPrimaryPartCFrame(ViewModel.PrimaryPart.CFrame * guncf)
+		end
+
+		if running then
+			gunbobcf = gunbobcf:Lerp(
+				CFrame.new(
+					0.02 * (charspeed / 10) * math.sin(tick() * 5), -- Slightly lower amplitude and frequency
+					0.015 * (charspeed / 10) * math.cos(tick() * 5), -- Asymmetry for natural feel
+					0
+				)
+					* CFrame.Angles(
+						math.rad(1.5 * (charspeed / 10) * math.sin(tick() * 12)), -- Enhanced roll effect
+						math.rad(1.5 * (charspeed / 10) * math.cos(tick() * 6)),
+						math.rad(0)
+					),
+				0.15
+			) -- Smooth interpolation factor
+		else
+			gunbobcf = gunbobcf:Lerp(
+				CFrame.new(0.005 * math.sin(tick() * 1.5), 0.005 * math.cos(tick() * 2.5), 0),
+				1
+			)
+		end
+
+		local AimTiming = 0
+		if WeaponData.adsTime then
+			AimTiming += step / (WeaponData.adsTime * 0.1)
+		else
+			AimTiming = 0.2
+		end
+		if CurAimpart and aimming and AnimDebounce and not CheckingMag then
+			if not NVG or WeaponInHand.AimPart:FindFirstChild("NVAim") == nil then
+				if AimPartMode == 1 then
+					TS:Create(cam, AimTween, {FieldOfView = ModTable.ZoomValue}):Play()
+					maincf = maincf:Lerp(
+						maincf * CFrame.new(0, 0, -0.5) * recoilcf * Sway:inverse()
+							* CurAimpart.CFrame:toObjectSpace(cam.CFrame),
+						AimTiming
 					)
-				SKP_07.WidthScale =
-					NumberSequence.new(
-						{
-							NumberSequenceKeypoint.new(0, 2, 0),
-							NumberSequenceKeypoint.new(1, 0)
-						}
+				else
+					TS:Create(cam, AimTween, {FieldOfView = ModTable.Zoom2Value}):Play()
+					maincf = maincf:Lerp(
+						maincf * CFrame.new(0, 0, -0.5) * recoilcf * Sway:inverse()
+							* CurAimpart.CFrame:toObjectSpace(cam.CFrame),
+						AimTiming
 					)
-				SKP_07.Texture = "rbxassetid://232918622"
-				SKP_07.TextureMode = Enum.TextureMode.Stretch
-				SKP_07.LightEmission = 1
-				SKP_07.Lifetime = 0.2
-				SKP_07.FaceCamera = true
-				SKP_07.Color = ColorSequence.new(SKP_arg8)
+				end
+			else
+				TS:Create(cam, AimTween, {FieldOfView = 70}):Play()
+				maincf = maincf:Lerp(
+					maincf * CFrame.new(0, 0, -0.5) * recoilcf * Sway:inverse()
+						* (WeaponInHand.AimPart.CFrame * WeaponInHand.AimPart.NVAim.CFrame):toObjectSpace(cam.CFrame),
+					AimTiming
+				)
+			end
+		else
+			TS:Create(cam, AimTween, {FieldOfView = 70}):Play()
+			maincf = maincf:Lerp(AnimData.MainCFrame * recoilcf * Sway:inverse(), AimTiming)
+		end
+
+		for index, Part in pairs(WeaponInHand:GetDescendants()) do
+			if Part:IsA("BasePart") and Part.Name == "SightMark" then
+				local dist_scale = Part.CFrame:pointToObjectSpace(cam.CFrame.Position) / Part.Size
+				local reticle = Part.SurfaceGui.Border.Scope
+				reticle.Position = UDim2.new(0.5 + dist_scale.x, 0, 0.5 - dist_scale.y, 0)
+				if Part.SurfaceGui.Border:FindFirstChild("Vignette") then
+				end
+			end
+		end
+
+		recoilcf = recoilcf:Lerp(
+			CFrame.new() * CFrame.Angles(math.rad(RecoilSpring.p.X), math.rad(RecoilSpring.p.Y), math.rad(RecoilSpring.p.z)),
+			AimTiming
+		)
+
+		if WeaponData.CrossHair then
+			if aimming then
+				CHup = CHup:Lerp(UDim2.new(0.5, 0, 0.5, 0), AimTiming)
+				CHdown = CHdown:Lerp(UDim2.new(0.5, 0, 0.5, 0), AimTiming)
+				CHleft = CHleft:Lerp(UDim2.new(0.5, 0, 0.5, 0), AimTiming)
+				CHright = CHright:Lerp(UDim2.new(0.5, 0, 0.5, 0), AimTiming)
+			else
+				local Normalized =
+					((WeaponData.CrosshairOffset + BSpread + (charspeed * WeaponData.WalkMult * ModTable.WalkMult)) / 50) / 10
+
+				CHup = CHup:Lerp(UDim2.new(0.5, 0, 0.5 - Normalized, 0), 0.5)
+				CHdown = CHdown:Lerp(UDim2.new(0.5, 0, 0.5 + Normalized, 0), 0.5)
+				CHleft = CHleft:Lerp(UDim2.new(0.5 - Normalized, 0, 0.5, 0), 0.5)
+				CHright = CHright:Lerp(UDim2.new(0.5 + Normalized, 0, 0.5, 0), 0.5)
 			end
 
-			if SKP_arg10 then
-				local SKP_08 = Instance.new("BillboardGui", SKP_02)
-				SKP_08.Adornee = SKP_02
-				local SKP_09 = math.random(375, 475) / 10
-				SKP_08.Size = UDim2.new(SKP_09, 0, SKP_09, 0)
-				SKP_08.LightInfluence = 0
-				local SKP_010 = Instance.new("ImageLabel", SKP_08)
-				SKP_010.BackgroundTransparency = 1
-				SKP_010.Size = UDim2.new(1, 0, 1, 0)
-				SKP_010.Position = UDim2.new(0, 0, 0, 0)
-				SKP_010.Image = "http://www.roblox.com/asset/?id=1047066405"
-				SKP_010.ImageColor3 = SKP_arg11
+			Crosshair.Position = UDim2.new(0, mouse.X, 0, mouse.Y)
 
-				SKP_010.ImageTransparency = math.random(2, 5) / 15
+			Crosshair.Up.Position = CHup
+			Crosshair.Down.Position = CHdown
+			Crosshair.Left.Position = CHleft
+			Crosshair.Right.Position = CHright
+		else
+			CHup = CHup:Lerp(UDim2.new(0.5, 0, 0.5, 0), AimTiming)
+			CHdown = CHdown:Lerp(UDim2.new(0.5, 0, 0.5, 0), AimTiming)
+			CHleft = CHleft:Lerp(UDim2.new(0.5, 0, 0.5, 0), AimTiming)
+			CHright = CHright:Lerp(UDim2.new(0.5, 0, 0.5, 0), AimTiming)
 
-				if SKP_02:FindFirstChild("BillboardGui") ~= nil then
-					SKP_02.BillboardGui.Enabled = true
+			Crosshair.Position = UDim2.new(0, mouse.X, 0, mouse.Y)
+
+			Crosshair.Up.Position = CHup
+			Crosshair.Down.Position = CHdown
+			Crosshair.Left.Position = CHleft
+			Crosshair.Right.Position = CHright
+		end
+
+		if BSpread then
+			local currTime = time()
+			if currTime - LastSpreadUpdate > (60 / WeaponData.ShootRate) * 2 and not shooting and
+				BSpread > WeaponData.MinSpread * ModTable.MinSpread
+			then
+				BSpread = math.max(
+					WeaponData.MinSpread * ModTable.MinSpread,
+					BSpread - WeaponData.AimInaccuracyDecrease * ModTable.AimInaccuracyDecrease
+				)
+			end
+			if currTime - LastSpreadUpdate > (60 / WeaponData.ShootRate) * 1.5 and not shooting and
+				RecoilPower > WeaponData.MinRecoilPower * ModTable.MinRecoilPower
+			then
+				RecoilPower = math.max(
+					WeaponData.MinRecoilPower * ModTable.MinRecoilPower,
+					RecoilPower - WeaponData.RecoilPowerStepAmount * ModTable.RecoilPowerStepAmount
+				)
+			end
+		end
+		if LaserActive and Pointer ~= nil then
+			if NVG then
+				Pointer.Transparency = 0
+				Pointer.Beam.Enabled = true
+			else
+				if not gameRules.RealisticLaser then
+					Pointer.Beam.Enabled = true
+				else
+					Pointer.Beam.Enabled = false
+				end
+				if IRmode then
+					Pointer.Transparency = 1
+				else
+					Pointer.Transparency = 0
 				end
 			end
 
-			local SKP_011 = {SKP_02, workspace.ACS_WorkSpace}
-			while true do
-				RS.Heartbeat:wait()
-				local SKP_012 = Ray.new(SKP_02.Position, SKP_02.CFrame.LookVector * 25)
-				local SKP_013, SKP_014 = workspace:FindPartOnRayWithIgnoreList(SKP_012, SKP_011, false, true)
-				if SKP_013 then
-					game.Debris:AddItem(SKP_02, 0)
+			for index, Key in pairs(WeaponInHand:GetDescendants()) do
+				if Key:IsA("BasePart") and Key.Name == "LaserPoint" then
+					-- Rangefinder logic start
+					local rangeFinderBool = WeaponInHand.Handle:FindFirstChild("RangeFinder")
+					local isRangeFinder = rangeFinderBool and rangeFinderBool.Value == true
+					if isRangeFinder then
+						local L_361_ = Ray.new(Key.CFrame.Position, Key.CFrame.LookVector * 1000)
+						local Hit, Pos, Normal = workspace:FindPartOnRayWithIgnoreList(L_361_, Ignore_Model, false, true)
+
+						if Hit then
+							Pointer.CFrame = CFrame.new(Pos, Pos + Normal)
+							local range = (Key.CFrame.Position - Pos).magnitude
+							-- Find RangeFinderScreen
+							local rangeFinderScreen = WeaponInHand:FindFirstChild("RangeFinderScreen")
+							if rangeFinderScreen then
+								local rangeLabel =
+									rangeFinderScreen:FindFirstChild("RangeFinderGUI") and
+									rangeFinderScreen.RangeFinderGUI:FindFirstChild("TextFrame") and
+									rangeFinderScreen.RangeFinderGUI.TextFrame:FindFirstChild("Range")
+								if rangeLabel and rangeLabel:IsA("TextLabel") then
+									rangeLabel.Text = string.format("%.0f stds", range)
+								end
+							end
+						else
+							Pointer.CFrame = CFrame.new(
+								cam.CFrame.Position + Key.CFrame.LookVector * 2000,
+								Key.CFrame.LookVector
+							)
+							local rangeFinderScreen = WeaponInHand:FindFirstChild("RangeFinderScreen")
+							if rangeFinderScreen then
+								local rangeLabel =
+									rangeFinderScreen:FindFirstChild("RangeFinderGUI") and
+									rangeFinderScreen.RangeFinderGUI:FindFirstChild("TextFrame") and
+									rangeFinderScreen.RangeFinderGUI.TextFrame:FindFirstChild("Range")
+								if rangeLabel and rangeLabel:IsA("TextLabel") then
+									rangeLabel.Text = "-- stds"
+								end
+							end
+						end
+						if HalfStep and gameRules.ReplicatedLaser then
+							Evt.SVLaser:FireServer(Pos, 1, Pointer.Color, IRmode, WeaponTool)
+						end
+					else
+						-- Non-rangefinder laser handling (your existing code):
+						local L_361_ = Ray.new(Key.CFrame.Position, Key.CFrame.LookVector * 1000)
+						local Hit, Pos, Normal = workspace:FindPartOnRayWithIgnoreList(L_361_, Ignore_Model, false, true)
+
+						if Hit then
+							Pointer.CFrame = CFrame.new(Pos, Pos + Normal)
+						else
+							Pointer.CFrame = CFrame.new(
+								cam.CFrame.Position + Key.CFrame.LookVector * 2000,
+								Key.CFrame.LookVector
+							)
+						end
+						if HalfStep and gameRules.ReplicatedLaser then
+							Evt.SVLaser:FireServer(Pos, 1, Pointer.Color, IRmode, WeaponTool)
+						end
+					end
+					-- Rangefinder logic end
 					break
 				end
 			end
-			game.Debris:AddItem(SKP_02, 0)
-			return SKP_02
 		end
 	end
-)
 
-Evt.ACS_AI.AIShoot.OnClientEvent:Connect(
-	function(Gun)
-		for _, v in pairs(Gun.Muzzle:GetChildren()) do
-			if v.Name:sub(1, 7) == "FlashFX" or v.Name:sub(1, 7) == "Smoke" then
-				v.Enabled = true
-			end
-		end
-
-		delay(
-			1 / 30,
-			function()
-				for _, v in pairs(Gun.Muzzle:GetChildren()) do
-					if v.Name:sub(1, 7) == "FlashFX" or v.Name:sub(1, 7) == "Smoke" then
-						v.Enabled = false
-					end
-				end
-			end
-		)
+	if ACS_Client:GetAttribute("Surrender") then
+		char.Humanoid.WalkSpeed = 0
+	elseif script.Parent:GetAttribute("Injured") then
+		SetWalkSpeed(gameRules.InjuredCrouchWalkSpeed)
+	elseif runKeyDown then
+		SetWalkSpeed(gameRules.RunWalkSpeed)
+		Crouched = false
+		Proned = false
+	elseif Crouched then
+		SetWalkSpeed(gameRules.CrouchWalkSpeed)
+	elseif Proned then
+		SetWalkSpeed(gameRules.ProneWalksSpeed)
+	elseif Steady then
+		SetWalkSpeed(gameRules.SlowPaceWalkSpeed)
+	else
+		SetWalkSpeed(gameRules.NormalWalkSpeed)
 	end
-)
+end)
+----------//Render Functions\\----------
 
-----------------------------------------------------------------------------------------------
-------------------------------------[TECLAS]--------------------------------------------------
-----------------------------------------------------------------------------------------------
+----------//Events\\----------
+Evt.Refil.OnClientEvent:Connect(function(Tool, Infinite, Stored)
+	local data = require(Tool.ACS_Settings)
 
-local Laserdebounce = false
+	Evt.Refil:FireServer(Tool, Infinite, Stored, data.MaxStoredAmmo, StoredAmmo)
 
-Mouse.KeyDown:connect(
-	function(key)
-		if (key == "v") and Equipped and Settings.FireModes.ChangeFiremode then
-			ArmaClone.Handle.SafetyClick:Play()
-			---Semi Settings---
-			if Settings.Mode == "Semi" and Settings.FireModes.Burst == true then
-				Gui.FText.Text = "Burst"
-				Settings.Mode = "Burst"
-			elseif Settings.Mode == "Semi" and Settings.FireModes.Burst == false and Settings.FireModes.Auto == true then
-				Gui.FText.Text = "Auto"
-				Settings.Mode = "Auto"
-			elseif
-				Settings.Mode == "Semi" and Settings.FireModes.Burst == false and Settings.FireModes.Auto == false and
-				Settings.FireModes.Explosive == true
-			then
-				---Burst Settings---
-				Gui.FText.Text = "Explosive"
-				Settings.Mode = "Explosive"
-			elseif Settings.Mode == "Burst" and Settings.FireModes.Auto == true then
-				Gui.FText.Text = "Auto"
-				Settings.Mode = "Auto"
-			elseif
-				Settings.Mode == "Burst" and Settings.FireModes.Explosive == true and Settings.FireModes.Auto == false
-			then
-				Gui.FText.Text = "Explosive"
-				Settings.Mode = "Explosive"
-			elseif
-				Settings.Mode == "Burst" and Settings.FireModes.Semi == true and Settings.FireModes.Auto == false and
-				Settings.FireModes.Explosive == false
-			then
-				---Auto Settings---
-				Gui.FText.Text = "Semi"
-				Settings.Mode = "Semi"
-			elseif Settings.Mode == "Auto" and Settings.FireModes.Explosive == true then
-				Gui.FText.Text = "Explosive"
-				Settings.Mode = "Explosive"
-			elseif Settings.Mode == "Auto" and Settings.FireModes.Semi == true and Settings.FireModes.Explosive == false then
-				Gui.FText.Text = "Semi"
-				Settings.Mode = "Semi"
-			elseif
-				Settings.Mode == "Auto" and Settings.FireModes.Semi == false and Settings.FireModes.Burst == true and
-				Settings.FireModes.Explosive == false
-			then
-				---Explosive Settings---
-				Gui.FText.Text = "Burst"
-				Settings.Mode = "Burst"
-			elseif Settings.Mode == "Explosive" and Settings.FireModes.Semi == true then
-				Gui.FText.Text = "Semi"
-				Settings.Mode = "Semi"
-			elseif
-				Settings.Mode == "Explosive" and Settings.FireModes.Semi == false and Settings.FireModes.Burst == true
-			then
-				Gui.FText.Text = "Burst"
-				Settings.Mode = "Burst"
-			elseif
-				Settings.Mode == "Explosive" and Settings.FireModes.Semi == false and Settings.FireModes.Burst == false and
-				Settings.FireModes.Auto == true
-			then
-				Gui.FText.Text = "Auto"
-				Settings.Mode = "Auto"
-			end
-			Update_Gui()
-		end
-		if (key == "t") and Equipped and (not NVG or ArmaClone.AimPart:FindFirstChild("NVAim") == nil) and not Reloading then
-			if Aiming then
-				if ArmaClone:FindFirstChild("AimPart2") ~= nil then
-					if AimPartMode == 1 then
-						AimPartMode = 2
-						tweenFoV(Settings.ChangeFOV[2], 120)
-						if Settings.FocusOnSight2 and Aiming then
-							--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.75),{ImageTransparency = 0}):Play()
-							TS:Create(
-								game.Lighting.DepthOfField,
-								TweenInfo.new(0.3),
-								{FocusDistance = Settings.Focus2Distance}
-							):Play()
-						else
-							--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.3),{ImageTransparency = 1}):Play()
-							TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
-						end
-						if Settings.adsMesh2 then
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "REG" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-									end
-								end
-							end
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "ADS" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-									end
-								end
-							end
-						else
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "REG" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-									end
-								end
-							end
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "ADS" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-									end
-								end
-							end
-						end
-						if Settings.ZoomAnim then
-							ZoomAnim()
-							Sprint()
-						end
-					elseif AimPartMode == 2 then
-						AimPartMode = 1
-						tweenFoV(Settings.ChangeFOV[1], 120)
-						if Settings.FocusOnSight and Aiming then
-							--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.75),{ImageTransparency = 0}):Play()
-							TS:Create(
-								game.Lighting.DepthOfField,
-								TweenInfo.new(0.3),
-								{FocusDistance = Settings.Focus1Distance}
-							):Play()
-						else
-							--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.3),{ImageTransparency = 1}):Play()
-							TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
-						end
-						if Settings.adsMesh1 then
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "REG" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-									end
-								end
-							end
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "ADS" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-									end
-								end
-							end
-						else
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "REG" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-									end
-								end
-							end
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "ADS" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-									end
-								end
-							end
-						end
-						if Settings.ZoomAnim then
-							UnZoomAnim()
-							Sprint()
-						end
-					end
-				else
-					if AimPartMode == 1 then
-						AimPartMode = 2
-						tweenFoV(Settings.ChangeFOV[2], 120)
-						if Settings.FocusOnSight2 and Aiming then
-							--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.75),{ImageTransparency = 0}):Play()
-							TS:Create(
-								game.Lighting.DepthOfField,
-								TweenInfo.new(0.3),
-								{FocusDistance = Settings.Focus2Distance}
-							):Play()
-						else
-							--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.3),{ImageTransparency = 1}):Play()
-							TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
-						end
-						if Settings.adsMesh2 then
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "REG" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-									end
-								end
-							end
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "ADS" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-									end
-								end
-							end
-						else
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "REG" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-									end
-								end
-							end
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "ADS" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-									end
-								end
-							end
-						end
-						if Settings.ZoomAnim then
-							ZoomAnim()
-							Sprint()
-						end
-					elseif AimPartMode == 2 then
-						AimPartMode = 1
-						tweenFoV(Settings.ChangeFOV[1], 120)
-						if Settings.FocusOnSight and Aiming then
-							--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.75),{ImageTransparency = 0}):Play()
-							TS:Create(
-								game.Lighting.DepthOfField,
-								TweenInfo.new(0.3),
-								{FocusDistance = Settings.Focus1Distance}
-							):Play()
-						else
-							--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.3),{ImageTransparency = 1}):Play()
-							TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
-						end
-						if Settings.adsMesh1 then
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "REG" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-									end
-								end
-							end
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "ADS" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-									end
-								end
-							end
-						else
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "REG" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 0}):Play()
-									end
-								end
-							end
-							for _, v in pairs(ArmaClone:GetDescendants()) do
-								if v:IsA("MeshPart") or v:IsA("Part") or v:IsA("UnionOperation") then
-									if v.Name == "ADS" then
-										TS:Create(v, TweenInfo.new(0), {Transparency = 1}):Play()
-									end
-								end
-							end
-						end
-						if Settings.ZoomAnim then
-							UnZoomAnim()
-							Sprint()
-						end
-					end
-				end
-			else
-				if AimPartMode == 1 then
-					AimPartMode = 2
-					if Settings.FocusOnSight2 and Aiming then
-						--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.75),{ImageTransparency = 0}):Play()
-						TS:Create(
-							game.Lighting.DepthOfField,
-							TweenInfo.new(0.3),
-							{FocusDistance = Settings.Focus2Distance}
-						):Play()
-					else
-						--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.3),{ImageTransparency = 1}):Play()
-						TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
-					end
-					if Settings.ZoomAnim then
-						ZoomAnim()
-						Sprint()
-					end
-				elseif AimPartMode == 2 then
-					AimPartMode = 1
-					if Settings.FocusOnSight and Aiming then
-						--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.75),{ImageTransparency = 0}):Play()
-						TS:Create(
-							game.Lighting.DepthOfField,
-							TweenInfo.new(0.3),
-							{FocusDistance = Settings.Focus1Distance}
-						):Play()
-					else
-						--TS:Create(StatusClone.Efeitos.Aim,TweenInfo.new(.3),{ImageTransparency = 1}):Play()
-						TS:Create(game.Lighting.DepthOfField, TweenInfo.new(0.3), {FocusDistance = 0}):Play()
-					end
-					if Settings.ZoomAnim then
-						UnZoomAnim()
-						Sprint()
-					end
-				end
-			end
-		end
-
-		if (key == "[") and Equipped then
-			if Zeroing.Value > Zeroing.MinValue then
-				Zeroing.Value = Zeroing.Value - 50
-				ArmaClone.Handle.Click:play()
-				Update_Gui()
-			end
-		end
-		if (key == "]") and Equipped then
-			if Zeroing.Value < Zeroing.MaxValue then
-				Zeroing.Value = Zeroing.Value + 50
-				ArmaClone.Handle.Click:play()
-				Update_Gui()
-			end
-		end
-		if (key == "r") and Equipped and stance > -2 then
-			CancelReload = false
-			if StoredAmmo.Value > 0 and Settings.Mode ~= "Explosive" and not Reloading and Settings.ReloadType == 1 then
-				if
-					Settings.IncludeChamberedBullet and Ammo.Value == Settings.Ammo + 1 or
-					not Settings.IncludeChamberedBullet and Ammo.Value == Settings.Ammo and Chambered.Value == true
-				then
-					return
-				end
-				MouseHeld = false
-				Can_Shoot = false
-				Reloading = true
-				if Safe then
-					Safe = false
-					stance = 0
-					Evt.Stance:FireServer(stance, Settings, Anims)
-					IdleAnim()
-					Update_Gui()
-					wait(.25)
-				end
-				ReloadAnim()
-				if Chambered.Value == false and slideback == true and Settings.FastReload == true then
-					ChamberBKAnim()
-				elseif Chambered.Value == false and slideback == false and Settings.FastReload == true then
-					ChamberAnim()
-				end
-				Sprint()
-				Update_Gui()
-				Can_Shoot = true
-				Reloading = false
-			elseif StoredAmmo.Value > 0 and Settings.Mode ~= "Explosive" and not Reloading and Settings.ReloadType == 2 then
-				if
-					Settings.IncludeChamberedBullet and Ammo.Value == Settings.Ammo + 1 or
-					not Settings.IncludeChamberedBullet and Ammo.Value == Settings.Ammo and Chambered.Value == true or
-					CancelReload
-				then
-					Sprint()
-					Update_Gui()
-					return
-				end
-				MouseHeld = false
-				Can_Shoot = false
-				Reloading = true
-				if Safe then
-					Safe = false
-					stance = 0
-					Evt.Stance:FireServer(stance)
-					Sprint()
-					Update_Gui()
-					wait(.25)
-				end
-				for i = 1, Settings.Ammo - Ammo.Value do
-					if StoredAmmo.Value > 0 and not CancelReload and Ammo.Value < Settings.Ammo and not AnimDebounce then
-						ShellInsertAnim()
-					end
-				end
-				if Chambered.Value == false and slideback == true and Settings.FastReload == true then
-					ChamberBKAnim()
-				elseif Chambered.Value == false and slideback == false and Settings.FastReload == true then
-					ChamberAnim()
-				end
-				Update_Gui()
-				Sprint()
-				CancelReload = false
-				Can_Shoot = true
-				Reloading = false
-			elseif
-				StoredAmmo.Value > 0 and Settings.Mode ~= "Explosive" and Reloading and Settings.ReloadType == 2 and
-				AnimDebounce
-			then
-				if not CancelReload then
-					CancelReload = true
-					Sprint()
-					Update_Gui()
-					wait(.25)
-				end
-			elseif not Reloading and GLAmmo.Value > 0 and Settings.Mode == "Explosive" and GLChambered.Value == false then
-				MouseHeld = false
-				Can_Shoot = false
-				Reloading = true
-				GLReloadAnim()
-				GLChambered.Value = true
-				Sprint()
-				Update_Gui()
-				Can_Shoot = true
-				Reloading = false
-			end
-		end
-		if (key == "f") and Equipped and not Reloading and stance > -2 then
-			MouseHeld = false
-			Can_Shoot = false
-			Reloading = true
-
-			if Safe then
-				Safe = false
-				stance = 0
-				Evt.Stance:FireServer(stance, Settings, Anims)
-				IdleAnim()
-				Update_Gui()
-				--wait(.25)
-			end
-
-			if not slideback then
-				ChamberAnim()
-			else
-				ChamberBKAnim()
-			end
-			Sprint()
-			Update_Gui()
-			Can_Shoot = true
-			Reloading = false
-		end
-		if (key == "m") and Equipped and Settings.CanCheckMag and not Reloading and stance > -2 then
-			MouseHeld = false
-			Can_Shoot = false
-			Reloading = true
-
-			if Safe then
-				Safe = false
-				stance = 0
-				Evt.Stance:FireServer(stance, Settings, Anims)
-				IdleAnim()
-				Update_Gui()
-				--wait(.25)
-			end
-			CheckAnim()
-			Sprint()
-			Update_Gui()
-			Can_Shoot = true
-			Reloading = false
-		end
-		if (key == "h") and Equipped and ArmaClone:FindFirstChild("LaserPoint") then
-			if ServerConfig.RealisticLaser and ArmaClone.LaserPoint:FindFirstChild("IR") ~= nil then
-				if not LaserAtivo and not IRmode then
-					LaserAtivo = not LaserAtivo
-					IRmode = not IRmode
-
-					if LaserAtivo then
-						Evt.SVLaser:FireServer(Vector3.new(0, 0, 0), 1, ArmaClone.LaserPoint.Color, ArmaClient)
-						Pointer = Instance.new("Part")
-						Pointer.Shape = "Ball"
-						Pointer.Size = Vector3.new(0.05, 0.05, 0.01)
-						Pointer.Parent = ArmaClone.LaserPoint
-						Pointer.CanCollide = false
-						Pointer.Color = ArmaClone.LaserPoint.Color
-						Pointer.Material = Enum.Material.Neon
-
-						if ArmaClone.LaserPoint:FindFirstChild("IR") ~= nil then
-							Pointer.Transparency = 1
-						end
-
-						LaserSP = Instance.new("Attachment")
-						LaserSP.Parent = ArmaClone.LaserPoint
-
-						LaserEP = Instance.new("Attachment")
-						LaserEP.Parent = ArmaClone.LaserPoint
-
-						Laser = Instance.new("Beam")
-						Laser.Parent = ArmaClone.LaserPoint
-						Laser.Transparency = NumberSequence.new(0)
-						Laser.LightEmission = 5
-						Laser.LightInfluence = 2
-						Laser.Attachment0 = LaserSP
-						Laser.Attachment1 = LaserEP
-						Laser.Color = ColorSequence.new(ArmaClone.LaserPoint.Color, IRmode)
-						Laser.FaceCamera = true
-						Laser.Width0 = 0.01
-						Laser.Width1 = 0.01
-
-						if ServerConfig.RealisticLaser then
-							Laser.Enabled = false
-						end
-					else
-						Evt.SVLaser:FireServer(Vector3.new(0, 0, 0), 2, nil, ArmaClient, IRmode)
-						Pointer:Destroy()
-						LaserSP:Destroy()
-						LaserEP:Destroy()
-						Laser:Destroy()
-					end
-				elseif LaserAtivo and IRmode then
-					IRmode = not IRmode
-				elseif LaserAtivo and not IRmode then
-					LaserAtivo = not LaserAtivo
-
-					if LaserAtivo then
-						Evt.SVLaser:FireServer(Vector3.new(0, 0, 0), 1, ArmaClone.LaserPoint.Color, ArmaClient)
-						Pointer = Instance.new("Part")
-						Pointer.Shape = "Ball"
-						Pointer.Size = Vector3.new(0.05, 0.05, 0.01)
-						Pointer.Parent = ArmaClone.LaserPoint
-						Pointer.CanCollide = false
-						Pointer.Color = ArmaClone.LaserPoint.Color
-						Pointer.Material = Enum.Material.Neon
-
-						if ArmaClone.LaserPoint:FindFirstChild("IR") ~= nil then
-							Pointer.Transparency = 1
-						end
-
-						LaserSP = Instance.new("Attachment")
-						LaserSP.Parent = ArmaClone.LaserPoint
-
-						LaserEP = Instance.new("Attachment")
-						LaserEP.Parent = ArmaClone.LaserPoint
-
-						Laser = Instance.new("Beam")
-						Laser.Parent = ArmaClone.LaserPoint
-						Laser.Transparency = NumberSequence.new(0)
-						Laser.LightEmission = 1
-						Laser.LightInfluence = 0
-						Laser.Attachment0 = LaserSP
-						Laser.Attachment1 = LaserEP
-						Laser.Color = ColorSequence.new(ArmaClone.LaserPoint.Color, IRmode)
-						Laser.FaceCamera = true
-						Laser.Width0 = 0.01
-						Laser.Width1 = 0.01
-
-						if ServerConfig.RealisticLaser then
-							Laser.Enabled = false
-						end
-					else
-						Evt.SVLaser:FireServer(Vector3.new(0, 0, 0), 2, nil, ArmaClient, IRmode)
-						Pointer:Destroy()
-						LaserSP:Destroy()
-						LaserEP:Destroy()
-						Laser:Destroy()
-					end
-				end
-			else
-				LaserAtivo = not LaserAtivo
-
-				if LaserAtivo then
-					Evt.SVLaser:FireServer(Vector3.new(0, 0, 0), 1, ArmaClone.LaserPoint.Color, ArmaClient)
-					Pointer = Instance.new("Part")
-					Pointer.Shape = "Ball"
-					Pointer.Size = Vector3.new(0.05, 0.05, 0.01)
-					Pointer.Parent = ArmaClone.LaserPoint
-					Pointer.CanCollide = false
-					Pointer.Color = ArmaClone.LaserPoint.Color
-					Pointer.Material = Enum.Material.Neon
-
-					if ArmaClone.LaserPoint:FindFirstChild("IR") ~= nil then
-						Pointer.Transparency = 1
-					end
-
-					LaserSP = Instance.new("Attachment")
-					LaserSP.Parent = ArmaClone.LaserPoint
-
-					LaserEP = Instance.new("Attachment")
-					LaserEP.Parent = ArmaClone.LaserPoint
-
-					Laser = Instance.new("Beam")
-					Laser.Parent = ArmaClone.LaserPoint
-					Laser.Transparency = NumberSequence.new(0)
-					Laser.LightEmission = 1
-					Laser.LightInfluence = 0
-					Laser.Attachment0 = LaserSP
-					Laser.Attachment1 = LaserEP
-					Laser.Color = ColorSequence.new(ArmaClone.LaserPoint.Color, IRmode)
-					Laser.FaceCamera = true
-					Laser.Width0 = 0.01
-					Laser.Width1 = 0.01
-
-					if ServerConfig.RealisticLaser then
-						Laser.Enabled = false
-					end
-				else
-					Evt.SVLaser:FireServer(Vector3.new(0, 0, 0), 2, nil, ArmaClient, IRmode)
-					Pointer:Destroy()
-					LaserSP:Destroy()
-					LaserEP:Destroy()
-					Laser:Destroy()
-				end
-			end
-			ArmaClone.Handle.Click:play()
-		end
-		if (key == "j") and Equipped and ArmaClone:FindFirstChild("FlashPoint") then
-			LanternaAtiva = not LanternaAtiva
-			ArmaClone.Handle.Click:play()
-			if LanternaAtiva then
-				Evt.SVFlash:FireServer(
-					true,
-					ArmaClient,
-					ArmaClone.FlashPoint.Light.Angle,
-					ArmaClone.FlashPoint.Light.Brightness,
-					ArmaClone.FlashPoint.Light.Color,
-					ArmaClone.FlashPoint.Light.Range
-				)
-				ArmaClone.FlashPoint.Light.Enabled = true
-			else
-				Evt.SVFlash:FireServer(false, ArmaClient, nil, nil, nil, nil)
-				ArmaClone.FlashPoint.Light.Enabled = false
-			end
-		end
-		if (key == "u") and Equipped and ArmaClone:FindFirstChild("Silenciador") then
-			Silencer.Value = not Silencer.Value
-			ArmaClone.Handle.Click:play()
-			if Silencer.Value == true then
-				ArmaClone.Silenciador.Transparency = 0
-				ArmaClone.SmokePart.FlashFX.Brightness = 0
-				ArmaClone.SmokePart:FindFirstChild("FlashFX[Flash]").Rate = 0
-
-				Evt.SilencerEquip:FireServer(ArmaClient, Silencer.Value)
-			else
-				ArmaClone.Silenciador.Transparency = 1
-				ArmaClone.SmokePart.FlashFX.Brightness = 5
-				ArmaClone.SmokePart:FindFirstChild("FlashFX[Flash]").Rate = 1000
-
-				Evt.SilencerEquip:FireServer(ArmaClient, Silencer.Value)
-			end
-		end
-		if (key == "b") and Equipped and BipodEnabled and ArmaClone:FindFirstChild("BipodPoint") then
-			Bipod = not Bipod
-			if Bipod == true then
-				if ArmaClone.BipodPoint:FindFirstChild("BipodDeploy") ~= nil then
-					ArmaClone.BipodPoint.BipodDeploy:play()
-				end
-			else
-				if ArmaClone.BipodPoint:FindFirstChild("BipodRetract") ~= nil then
-					ArmaClone.BipodPoint.BipodRetract:play()
-				end
-			end
-		end
-		if (key == "n") and Laserdebounce == false then
-			if Player.Character then
-				local helmet = Player.Character:FindFirstChild("Helmet")
-				if helmet then
-					local nvg = helmet:FindFirstChild("Up")
-					if nvg then
-						Laserdebounce = true
-						delay(
-							.8,
-							function()
-								NVG = not NVG
-
-								if Aiming and ArmaClone.AimPart:FindFirstChild("NVAim") ~= nil then
-									if NVG then
-										tweenFoV(70, 120)
-										TS:Create(StatusClone.Efeitos.Aim, TweenInfo.new(.3), {ImageTransparency = 1}):Play(
-
-										)
-									else
-										if AimPartMode == 1 then
-											tweenFoV(Settings.ChangeFOV[1], 120)
-											if Settings.FocusOnSight then
-												TS:Create(
-													StatusClone.Efeitos.Aim,
-													TweenInfo.new(.75),
-													{ImageTransparency = 0}
-												):Play()
-											else
-												TS:Create(
-													StatusClone.Efeitos.Aim,
-													TweenInfo.new(.3),
-													{ImageTransparency = 1}
-												):Play()
-											end
-										elseif AimPartMode == 2 then
-											tweenFoV(Settings.ChangeFOV[2], 120)
-											if Settings.FocusOnSight2 then
-												TS:Create(
-													StatusClone.Efeitos.Aim,
-													TweenInfo.new(.75),
-													{ImageTransparency = 0}
-												):Play()
-											else
-												TS:Create(
-													StatusClone.Efeitos.Aim,
-													TweenInfo.new(.3),
-													{ImageTransparency = 1}
-												):Play()
-											end
-										end
-									end
-								end
-								Laserdebounce = false
-							end
-						)
-					end
-				end
-			end
-		end
-	end
-)
-
---//Client Anims
-local Speedo
-
-function IdleAnim(L_442_arg1)
-	Anims.IdleAnim(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-end
-
-function StanceDown(L_442_arg1)
-	Anims.StanceDown(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-end
-
-function StanceUp(L_442_arg1)
-	Anims.StanceUp(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-end
-
-function Patrol(L_442_arg1)
-	Anims.Patrol(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-end
-
-function SprintAnim(L_442_arg1)
-	Anims.SprintAnim(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-end
-
-function EquipAnim(L_442_arg1)
-	AnimDebounce = true
-	Can_Shoot = false
-	Reloading = true
-	Anims.EquipAnim(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-	Reloading = false
-	Can_Shoot = true
-	AnimDebounce = false
-end
-
-function ChamberAnim(L_442_arg1)
-	AnimDebounce = true
-	Anims.ChamberAnim(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			Settings,
-			Right_Weld,
-			Left_Weld
-		}
-	)
-	if Ammo.Value > 0 and Chambered.Value == true and Emperrado.Value == true then
-		Emperrado.Value = false
-	elseif Ammo.Value > 0 and Chambered.Value == true and Emperrado.Value == false then
-		Ammo.Value = Ammo.Value - 1
-	end
-	slideback = false
-	if Ammo.Value > 0 then
-		Chambered.Value = true
-	end
-	AnimDebounce = false
-end
-
-function ZoomAnim(L_442_arg1)
-	Anims.ZoomAnim(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			Settings,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-end
-
-function UnZoomAnim(L_442_arg1)
-	Anims.UnZoomAnim(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			Settings,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-end
-
-function ChamberBKAnim(L_442_arg1)
-	AnimDebounce = true
-	Anims.ChamberBKAnim(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			Settings,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-	slideback = false
-	if Ammo.Value > 0 then
-		Chambered.Value = true
-	end
-	AnimDebounce = false
-end
-
-function CheckAnim(L_442_arg1)
-	AnimDebounce = true
-	CheckMagFunction()
-	Anims.CheckAnim(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			StoredAmmo,
-			Ammo,
-			Settings,
-			Chambered,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-	AnimDebounce = false
-end
-
-function ShellInsertAnim(L_442_arg1)
-	AnimDebounce = true
-	Anims.ShellInsertAnim(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			StoredAmmo,
-			Ammo,
-			Settings,
-			Chambered,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-	Evt.Recarregar:FireServer(StoredAmmo.Value, ArmaClient)
-	AnimDebounce = false
-end
-
-function ReloadAnim(L_442_arg1)
-	AnimDebounce = true
-	Anims.ReloadAnim(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			StoredAmmo,
-			Ammo,
-			Settings,
-			Chambered,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-	Evt.Recarregar:FireServer(StoredAmmo.Value, ArmaClient)
-	AnimDebounce = false
-end
-
-function GLReloadAnim(L_442_arg1)
-	AnimDebounce = true
-	Anims.GLReloadAnim(
-		Character,
-		Speedo,
-		{
-			AnimBaseW,
-			RA,
-			LA,
-			AnimBase.GripW,
-			ArmaClone,
-			StoredAmmo,
-			Ammo,
-			Settings,
-			Chambered,
-			Left_Weld,
-			Right_Weld
-		}
-	)
-	Evt.Recarregar:FireServer(StoredAmmo.Value, ArmaClient)
-	AnimDebounce = false
-end
-
-------------------------------------------------------------
---\Doors Update
-------------------------------------------------------------
-local DoorsFolder = ACS_Storage:FindFirstChild("Doors")
-local CAS = game:GetService("ContextActionService")
-
-local mDistance = 5
-local Key = nil
-
-function getNearest()
-	local nearest = nil
-	local minDistance = mDistance
-	local Character = Player.Character or Player.CharacterAdded:Wait()
-
-	for I, Door in pairs(DoorsFolder:GetChildren()) do
-		if Door.Door:FindFirstChild("Knob") ~= nil then
-			local distance = (Door.Door.Knob.Position - Character.Torso.Position).magnitude
-
-			if distance < minDistance then
-				nearest = Door
-				minDistance = distance
-			end
-		end
-	end
-	--print(nearest)
-	return nearest
-end
-
-function Interact(actionName, inputState, inputObj)
-	if inputState ~= Enum.UserInputState.Begin then
-		return
-	end
-
-	local nearestDoor = getNearest()
-	local Character = Player.Character or Player.CharacterAdded:Wait()
-
-	if nearestDoor == nil then
-		return
-	end
-
-	if (nearestDoor.Door.Knob.Position - Character.Torso.Position).magnitude <= mDistance then
-		if nearestDoor ~= nil then
-			if nearestDoor:FindFirstChild("RequiresKey") then
-				Key = nearestDoor.RequiresKey.Value
-			else
-				Key = nil
-			end
-			Evt.DoorEvent:FireServer(nearestDoor, 1, Key)
-		end
-	end
-end
-
-function GetNearest(parts, maxDistance, Part)
-	local closestPart
-	local minDistance = maxDistance
-	for _, partToFace in ipairs(parts) do
-		local distance = (Part.Position - partToFace.Position).magnitude
-		if distance < minDistance then
-			closestPart = partToFace
-			minDistance = distance
-		end
-	end
-	return closestPart
-end
-
-CAS:BindAction("Interact", Interact, false, Enum.KeyCode.G)
-
-Evt.Rappel.PlaceEvent.OnClientEvent:Connect(
-	function(Parte)
-		local Alinhar = Instance.new("AlignOrientation")
-		Alinhar.Parent = Parte
-		Alinhar.PrimaryAxisOnly = true
-		Alinhar.RigidityEnabled = true
-		Alinhar.Attachment0 = Character.HumanoidRootPart.RootAttachment
-		Alinhar.Attachment1 = Camera.BasePart.Attachment
-	end
-)
-
-print("ACS 1.7.5")
+end)
+----------//Events\\----------
